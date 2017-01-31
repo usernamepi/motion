@@ -1518,6 +1518,7 @@ static int mlp_capture(struct context *cnt){
             /* If we previously logged starting a grey image, now log video re-start */
             MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "%s: Video signal re-acquired");
             // event for re-acquired video signal can be called here
+            event(cnt, EVENT_CAMERA_FOUND, NULL, NULL, NULL, NULL);
         }
         cnt->missing_frame_counter = 0;
 
@@ -1920,7 +1921,7 @@ static void mlp_actions(struct context *cnt){
     if (cnt->conf.emulate_motion && (cnt->startup_frames == 0)) {
         cnt->detecting_motion = 1;
         MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Emulating motion");
-        if (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe)) {
+        if (cnt->conf.post_capture > 0) {
             /* Setup the postcap counter */
             cnt->postcap = cnt->conf.post_capture;
             MOTION_LOG(DBG, TYPE_ALL, NO_ERRNO, "%s: (Em) Init post capture %d",
@@ -1972,8 +1973,7 @@ static void mlp_actions(struct context *cnt){
             for (indx = 0; indx < cnt->imgs.image_ring_size; indx++)
                 cnt->imgs.image_ring[indx].flags |= IMAGE_SAVE;
 
-        } else if ((cnt->postcap) &&
-                   (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
+        } else if (cnt->postcap > 0) {
            /* we have motion in this frame, but not enought frames for trigger. Check postcap */
             cnt->current_image->flags |= (IMAGE_POSTCAP | IMAGE_SAVE);
             cnt->postcap--;
@@ -1985,8 +1985,7 @@ static void mlp_actions(struct context *cnt){
 
         /* Always call motion_detected when we have a motion image */
         motion_detected(cnt, cnt->video_dev, cnt->current_image);
-    } else if ((cnt->postcap) &&
-              (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
+    } else if (cnt->postcap > 0) {
         /* No motion, doing postcap */
         cnt->current_image->flags |= (IMAGE_POSTCAP | IMAGE_SAVE);
         cnt->postcap--;
@@ -3215,6 +3214,62 @@ int myfclose(FILE* fh)
 }
 
 /**
+ * mystrftime_long
+ *
+ *   Motion-specific long form of format specifiers.
+ *
+ * Parameters:
+ *
+ *   cnt        - current thread's context structure.
+ *   width      - width associated with the format specifier.
+ *   word       - beginning of the format specifier's word.
+ *   l          - length of the format specifier's word.
+ *   out        - output buffer where to store the result. Size: PATH_MAX.
+ *
+ * This is called if a format specifier with the format below was found:
+ *
+ *   % { word }
+ *
+ * As a special edge case, an incomplete format at the end of the string
+ * is processed as well:
+ *
+ *   % { word \0
+ *
+ * Any valid format specified width is supported, e.g. "%12{host}".
+ *
+ * The following specifier keywords are currently supported:
+ *
+ * host    Replaced with the name of the local machine (see gethostname(2)).
+ * fps     Equivalent to %fps.
+ */
+static void mystrftime_long (const struct context *cnt,
+                             int width, const char *word, int l, char *out)
+{
+#define SPECIFIERWORD(k) ((strlen(k)==l) && (!strncmp (k, word, l)))
+
+    if (SPECIFIERWORD("host")) {
+        char host[PATH_MAX];
+        gethostname (host, PATH_MAX);
+        host[PATH_MAX-1] = 0; // see man page for gethostname.
+        snprintf (out, PATH_MAX, "%*s", width, host);
+        return;
+    }
+    if (SPECIFIERWORD("fps")) {
+        sprintf(out, "%*d", width, cnt->movie_fps);
+        return;
+    }
+    // Not a valid modifier keyword. Log the error and ignore.
+    MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,
+        "%s: invalid format specifier keyword %*.*s", l, l, word);
+
+    // Do not let the output buffer empty, or else where to restart the
+    // interpretation of the user string will become dependent to far too
+    // many conditions. Maybe change loop to "if (*pos_userformat == '%') {
+    // ...} __else__ ..."?
+    out[0] = '~'; out[1] = 0;
+}
+
+/**
  * mystrftime
  *
  *   Motion-specific variant of strftime(3) that supports additional format
@@ -3357,6 +3412,16 @@ size_t mystrftime(const struct context *cnt, char *s, size_t max, const char *us
                     sprintf(tempstr, "%*d", width, sqltype);
                 else
                     ++pos_userformat;
+                break;
+
+            case '{': // long format specifier word.
+                {
+                    const char *word = ++pos_userformat;
+                    while ((*pos_userformat != '}') && (*pos_userformat != 0))
+                        ++pos_userformat;
+                    mystrftime_long (cnt, width, word, (int)(pos_userformat-word), tempstr);
+                    if (*pos_userformat == '\0') --pos_userformat;
+                }
                 break;
 
             case '$': // thread name
