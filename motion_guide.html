@@ -241,7 +241,7 @@ script for Ubuntu.  If errors occur during the process or you wish to customize 
 review the extended building instructions further below.
 <p></p>
 <code><strong>sudo apt-get install autoconf automake build-essential pkgconf libtool libzip-dev
-libjpeg62 libjpeg62-dev git libavformat-dev libavcodec-dev libavutil-dev libswscale-dev</strong></code>
+libjpeg62 libjpeg62-dev git libavformat-dev libavcodec-dev libavutil-dev libswscale-dev </strong></code>
 <p></p>
 <code><strong>cd ~</strong></code>
 <br><code><strong>git clone https://github.com/Motion-Project/motion.git</strong></code>
@@ -277,7 +277,7 @@ Ubuntu / Debian Packages
   <li>Required</li>
   <ul>
     <p></p>
-    <code><strong>sudo apt-get install autoconf automake build-essential pkgconf libtool git libzip-dev libjpeg62 libjpeg62-dev</strong></code>
+    <code><strong>sudo apt-get install autoconf automake build-essential pkgconf libtool git libzip-dev libjpeg62 libjpeg62-dev </strong></code>
     <p></p>
   </ul>
   <p></p>
@@ -313,6 +313,13 @@ Ubuntu / Debian Packages
       <code><strong>sudo apt-get install libjpeg-turbo8 libjpeg-turbo8-dev</strong></code>
       <p></p>
     </ul>
+    <li>Webp Image Support</li>
+    <ul>
+      <p></p>
+      <code><strong>sudo apt-get install libwebp-dev</strong></code>
+      <p></p>
+    </ul>
+
   </ul>
   Important ffmpeg/libav note:  Motion has been built to use either the libav or the ffmpeg set of libraries.
   Which set of libraries to use is a user selection and possibly dependent upon which is available in the
@@ -368,6 +375,12 @@ openSUSE Packages
       <code><strong>Not known by author</strong></code>
       <p></p>
     </ul>
+    <li>Webp Image Support</li>
+    <ul>
+      <p></p>
+      <code><strong>sudo zypper install libwebp-devel </strong></code>
+      <p></p>
+    </ul>
   </ul>
   Important ffmpeg note:  The ffmpeg libraries indicated above are provided by a external repository.  This may
   change in the future.  Validate that the repository is still valid when doing the install on openSUSE systems.
@@ -383,11 +396,8 @@ FreeBSD
     <ul>
       <li>autoconf</li>
       <li>automake</li>
-      <li>gcc</li>
       <li>gmake</li>
-      <li>libjpeg-turbo</li>
       <li>pkgconf</li>
-      <li>ffmpeg</li>
     </ul>
   <li>Optional database packages</li>
     <ul>
@@ -395,10 +405,14 @@ FreeBSD
       <li>postgresql95-contrib</li>
       <li>sqlite3</li>
     </ul>
-   <li>PWC based webcams packages</li>
+   <li>Webcams packages</li>
     <ul>
-      <li>pwcbsd</li>
+      <li>webcamd</li>
       <li>v4l_compat</li>
+    </ul>
+   <li>Webp Image Support</li>
+    <ul>
+      <li>libwebp</li>
     </ul>
 </ul>
 
@@ -601,18 +615,8 @@ how Motion is built.
 			<th bgcolor="#edf4f9" word-wrap:break-word >  </th>
 		</tr>
 		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-linuxthreads </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Use linuxthreads in BSD instead of native phtreads </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Only relevant for BSD. In Linux we always use this per default. </td>
-		</tr>
-		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-pwcbsd </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Use pwcbsd based webcams ( only BSD ) </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > This option allow to build motion to support V4L2 in BSD. </td>
-		</tr>
-		<tr>
 			<td bgcolor="#edf4f9" word-wrap:break-word > --without-bktr </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Exclude to use bktr subsystem , that usually useful for devices as network cameras </td>
+			<td bgcolor="#edf4f9" word-wrap:break-word > Exclude bktr video subsystem devices </td>
 			<td bgcolor="#edf4f9" word-wrap:break-word > ONLY used in *BSD </td>
 		</tr>
 		<tr>
@@ -621,8 +625,8 @@ how Motion is built.
 			<td bgcolor="#edf4f9" word-wrap:break-word > Can be used if you do not need support and maybe lack some of the libraries for it. </td>
 		</tr>
 		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-jpeg-mmx=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Specify the prefix for the install path for jpeg-mmx for optimized jpeg handling</td>
+			<td bgcolor="#edf4f9" word-wrap:break-word > --with-webp </td>
+			<td bgcolor="#edf4f9" word-wrap:break-word > Compile with webp image support</td>
 			<td bgcolor="#edf4f9" word-wrap:break-word >  </td>
 		</tr>
 		<tr>
@@ -650,29 +654,9 @@ how Motion is built.
 			<td bgcolor="#edf4f9" word-wrap:break-word > Use this if you do not want to compile with ffmpeg. If ffmpeg is not installed you must specify this option for Motion to build without ffmpeg. </td>
 		</tr>
 		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-mysql-lib=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Lib directory of MySQL </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Normally, configure will scan all possible default installation paths for MySQL libs. When its fail, use this command to tell configure where MySQL libs installation root directory is. </td>
-		</tr>
-		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-mysql-include=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Include directory with headers for MySQL </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Normally, configure will scan all possible default                          installation paths for MySQL include. When its fail, use this command to tell configure where MySQL include installation directory is. This is the directory with the MySQL header files. </td>
-		</tr>
-		<tr>
 			<td bgcolor="#edf4f9" word-wrap:break-word > --without-mysql </td>
 			<td bgcolor="#edf4f9" word-wrap:break-word > Do not compile with MySQL support </td>
 			<td bgcolor="#edf4f9" word-wrap:break-word > Use this if you do not want to include MySQL support in the package. <br /> This can also be useful if you get compilation errors related to MySQL and you actually do not need the feature anyway. </td>
-		</tr>
-		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-pgsql-lib=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Normally, configure will scan all possible default installation paths for pgsql libs. When it fails, use <br /> this command to tell configure where pgsql libs installation root directory is. </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word >  </td>
-		</tr>
-      <tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-pgsql-include=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word > Normally, configure will scan all possible default installation paths for pgsql include. When it fails, use this command to tell configure where pgsql include installation root directory is. </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word >  </td>
 		</tr>
 		<tr>
 			<td bgcolor="#edf4f9" word-wrap:break-word > --without-pgsql </td>
@@ -688,11 +672,6 @@ how Motion is built.
 			<td bgcolor="#edf4f9" word-wrap:break-word > --without-optimizecpu </td>
 			<td bgcolor="#edf4f9" word-wrap:break-word > Exclude autodetecting platform and cpu type. This will disable the compilation of gcc optimizing code by platform and cpu. </td>
 			<td bgcolor="#edf4f9" word-wrap:break-word > Use this if the optimization causes problems. Typically if you build on some non X386 compatible CPU. </td>
-		</tr>
-		<tr>
-			<td bgcolor="#edf4f9" word-wrap:break-word > --with-jpeg-turbo=DIR </td>
-			<td bgcolor="#edf4f9" word-wrap:break-word >  Specify the prefix for the install path for jpeg-turbo for optimized jpeg handling (optional).</td>
-			<td bgcolor="#edf4f9" word-wrap:break-word >  </td>
 		</tr>
 		<tr>
 			<td bgcolor="#edf4f9" word-wrap:break-word > --with-developer-flags </td>
@@ -1023,10 +1002,9 @@ For video4linux devices, the camera must be installed per the requirements of th
 out of the scope of this document to tell you how to do this and it depends on which type of camera.  Once
 the camera is installed it will have the device name(s) of /dev/video0, /dev/video1, /dev/video2...
 <p></p>
-FreeBSD has a different naming of devices. When you build Motion for FreeBSD the default device name is /dev/bktr0.
-Under FreeBSD a TV card has a special device for controlling the tuner (e.g. /dev/tuner0). The option tunerdevice
-is only valid when Motion is built and running under FreeBSD. For Linux do not include this option in the config
-file (remove or comment out).
+FreeBSD has a different naming scheme for pci devices that use the bktr subsystem.  The bktr subsystem will report
+devices using a naming scheme of /dev/bktr0, /dev/bktr1, etc.  These device may also need to use the other
+special device for the tuner.  The tuner will need to be specified with the tunerdevice option as /dev/tuner0.
 <p></p>
 <strong>USB cameras</strong> take a lot of bandwidth. A USB camera connected to a USB2 port or hub consumes virtually
 all the bandwidth that the port can handle. Even with a small framesize and low framerate you should not expect to have
@@ -2052,12 +2030,15 @@ Some configuration options are only used if Motion is built on a system that has
        <td bgcolor="#edf4f9" ><a href="#on_motion_detected" >on_motion_detected</a> </td>
      </tr>
      <tr>
-   	 <td bgcolor="#edf4f9" ><a href="#on_area_detected" >on_area_detected</a> </td>
+   	   <td bgcolor="#edf4f9" ><a href="#on_area_detected" >on_area_detected</a> </td>
        <td bgcolor="#edf4f9" ><a href="#on_movie_start" >on_movie_start</a> </td>
        <td bgcolor="#edf4f9" ><a href="#on_movie_end" >on_movie_end</a> </td>
        <td bgcolor="#edf4f9" ><a href="#on_camera_lost" >on_camera_lost</a> </td>
+     </tr>
+     <tr>
        <td bgcolor="#edf4f9" ><a href="#on_camera_found" >on_camera_found</a> </td>
      </tr>
+
    </tbody>
 </table>
 
@@ -2337,7 +2318,7 @@ The following section provides detailed descriptions of each of the configuratio
        <td bgcolor="#edf4f9" >%m  </a> </td>
        <td bgcolor="#edf4f9" >month</a> </td>
        <td bgcolor="#edf4f9" >%d   </a> </td>
-       <td bgcolor="#edf4f9" >date</a> </td>
+       <td bgcolor="#edf4f9" >day</a> </td>
      </tr>
      <tr>
        <td bgcolor="#edf4f9" >%H   </a> </td>
@@ -2590,14 +2571,15 @@ This option specifies a alternative directory to contain the individual camera c
 <ul>
   <li> Type: String</li>
   <li> Range / Valid values: Max 4095 characters</li>
-  <li> Default: /dev/video0 (FreeBSD: /dev/bktr0)</li>
+  <li> Default: /dev/video0 </li>
 </ul>
 <p></p>
-The video device to be used for capturing. Default for Linux is /dev/video0. for FreeBSD the default is /dev/bktr0.
+The video device to be used for capturing. Default is /dev/video0.
 See the <a href="#Basic_Setup">Basic Setup</a>
 section of this guide for a additional discussion of this option.
 <p></p>
-This is the video4linux device name. Ignore this for net cameras.
+This is the video4linux device name. Ignore this for net cameras.  If a netcam_url is specified, this option will
+be ignored.
 <p></p>
 
 <h3><a name="v4l2_palette"></a> v4l2_palette </h3>
@@ -2650,7 +2632,7 @@ format that Motion uses internally.
 </ul>
 <p></p>
 The tuner device used for controlling the tuner in a tuner card. This option is only used when Motion is compiled
-for FreeBSD.  Make sure to remove or comment out this option when running Motion under Linux.
+for FreeBSD with the bktr option.
 See the <a href="#Basic_Setup">Basic Setup</a> section of this guide for a additional discussion of this option.
 <p></p>
 
@@ -3540,13 +3522,12 @@ Mask file (converted to png format so it can be shown by your web browser)
 <p></p>
 The full path and filename for the privacy masking pgm file.  This file works like the mask_file as
 described above.  The difference with this parameter is that while the mask_file excludes the section from
-detecting motion, this file excludes the section of the image completely.  Excluded areas will appear as
-white on all images and movies.
+detecting motion, this file excludes the section of the image completely.
 <p></p>
 mask_privacy is applied before detection so no motion will ever be detected in the excluded area.
 This parameter could however still be used with the mask_file.  e.g.  This file could exclude the
 neighbors yard and the mask_file would exclude the blowing tree from motion detection.  The resulting
-pictures/movies would show solid white in place of the neighbors yard but the tree would still be in
+pictures/movies would show solid black in place of the neighbors yard but the tree would still be in
 the pictures/movies.
 <p></p>
 
@@ -4053,7 +4034,7 @@ the .jpg or .ppm. E.g. the name can be 01-20020424232936-00m.jpg.
   <li> Default: 75</li>
 </ul>
 <p></p>
-The quality for the jpeg images in percent.
+The quality for the jpeg or webp images in percent.
 100 means hardly compressed. A small number means a much smaller file size but also a less nice
 quality image to look at.
 <p></p>
@@ -4356,15 +4337,15 @@ Camstream is "fooled" to think it is looking at a real camera.
 <p></p>
 The video loopback device can be added installed via apt in many distributions.  The package tested
 with Motion is v4l2loopback-dkms.  Once the package is installed, you just need to run
-<code><strong>sudo modprobe v4l2loopback</strong></code>.  This will add a new video device that you 
-can use for the loopback.  It is believed that there are additional options associated with the 
+<code><strong>sudo modprobe v4l2loopback</strong></code>.  This will add a new video device that you
+can use for the loopback.  It is believed that there are additional options associated with the
 v4l2loopback that allows for adding more than one device.  See the documentation of the v4l2loopback
-project for additional details.  
+project for additional details.
 <p></p>
 To activate the vloopback device in motion set the 'video_pipe' option in the motion.conf file.
 You can also view the special motion pictures where you see the changed pixels by setting the option
 'motion_video_pipe' in motion.conf. When setting the video_pipe and/or motion_video_pipe options either
-specify the input device as e.g. /dev/video4. 
+specify the input device as e.g. /dev/video4.
 <p></p>
 De-activating should be done with this command
 <p></p>
@@ -4383,7 +4364,7 @@ De-activating should be done with this command
 </ul>
 <p></p>
 Default: not set
-The video4linux video loopback input device for normal images. The device would be specified 
+The video4linux video loopback input device for normal images. The device would be specified
 in the format like /dev/video1
 <p></p>
 <p></p>
@@ -4395,7 +4376,7 @@ in the format like /dev/video1
 </li> <li> Default: Not defined
 </li></ul>
 <p></p>
-The video4linux video loopback input device for motion images. The device would be specified 
+The video4linux video loopback input device for motion images. The device would be specified
 in the format like /dev/video1
 <p></p>
 <p></p>

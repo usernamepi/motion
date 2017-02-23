@@ -14,7 +14,7 @@
 
 /* Includes */
 #ifdef HAVE_MYSQL
-#include <mysql.h>
+#include <mysql/mysql.h>
 #endif
 
 #ifdef HAVE_SQLITE3
@@ -22,7 +22,7 @@
 #endif
 
 #ifdef HAVE_PGSQL
-#include <libpq-fe.h>
+#include <postgresql/libpq-fe.h>
 #endif
 
 
@@ -46,6 +46,10 @@
 #include <sys/param.h>
 #include <stdint.h>
 #include <pthread.h>
+
+#if defined(BSD)
+#include <pthread_np.h>
+#endif
 
 #include "logger.h"
 #include "conf.h"
@@ -133,6 +137,9 @@
 #define DEF_FFMPEG_VBR           0
 #define DEF_FFMPEG_CODEC   "mpeg4"
 
+#define DEF_INPUT               -1
+#define DEF_VIDEO_DEVICE         "/dev/video0"
+
 #define THRESHOLD_TUNE_LENGTH  256
 
 #define MISSING_FRAMES_TIMEOUT  30  /* When failing to get picture frame from camera
@@ -168,6 +175,7 @@
 /* OUTPUT Image types */
 #define IMAGE_TYPE_JPEG        0
 #define IMAGE_TYPE_PPM         1
+#define IMAGE_TYPE_WEBP        2
 
 /* Filetype defines */
 #define FTYPE_IMAGE            1
@@ -226,6 +234,14 @@ struct images;
 #define IMAGE_SAVED      8
 #define IMAGE_PRECAP    16
 #define IMAGE_POSTCAP   32
+
+enum CAMERA_TYPE {
+    CAMERA_TYPE_UNKNOWN,
+    CAMERA_TYPE_V4L2,
+    CAMERA_TYPE_BKTR,
+    CAMERA_TYPE_MMAL,
+    CAMERA_TYPE_NETCAM
+};
 
 struct image_data {
     unsigned char *image;
@@ -347,10 +363,13 @@ struct context {
     struct config conf;
     struct images imgs;
     struct trackoptions track;
+
+    enum CAMERA_TYPE      camera_type;
     struct netcam_context *netcam;
 #ifdef HAVE_MMAL
     struct mmalcam_context *mmalcam;
 #endif
+
     struct image_data *current_image;        /* Pointer to a structure where the image, diffs etc is stored */
     unsigned int new_img;
 

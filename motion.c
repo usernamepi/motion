@@ -6,15 +6,10 @@
  *    See also the file 'COPYING'.
  *
  */
-#include "ffmpeg.h"
 #include "motion.h"
-
-#if (defined(__FreeBSD__) && !defined(PWCBSD))
-#include "video_freebsd.h"
-#else
-#include "video2.h"
-#endif
-
+#include "ffmpeg.h"
+#include "video_common.h"
+#include "video_loopback.h"
 #include "conf.h"
 #include "alg.h"
 #include "track.h"
@@ -709,10 +704,47 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
     cnt->current_image = saved_current_image;
 }
 
+static int init_camera_type(struct context *cnt){
+
+    cnt->camera_type = CAMERA_TYPE_UNKNOWN;
+
+#ifdef HAVE_MMAL
+    if (cnt->conf.mmalcam_name) {
+        cnt->camera_type = CAMERA_TYPE_MMAL;
+        return 0;
+    }
+#endif // HAVE_MMAL
+
+    if (cnt->conf.netcam_url) {
+        cnt->camera_type = CAMERA_TYPE_NETCAM;
+        return 0;
+    }
+
+#ifdef HAVE_V4L2
+    if (strncmp(cnt->conf.video_device,"/dev/video",10) == 0) {
+        cnt->camera_type = CAMERA_TYPE_V4L2;
+        return 0;
+    }
+#endif // HAVE_V4L2
+
+#ifdef HAVE_BKTR
+    if (strncmp(cnt->conf.video_device,"/dev/bktr",9) == 0) {
+        cnt->camera_type = CAMERA_TYPE_BKTR;
+        return 0;
+    }
+#endif // HAVE_BKTR
+
+    MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Unable to determine camera type (MMAL, Netcam, V4L2, BKTR)");
+    return -1;
+
+}
+
 static void init_mask_privacy(struct context *cnt){
 
     int indxrow;
     int indxcol;
+    int start_cr, start_cb;
+
     FILE *picture;
 
     /* Load the privacy file if any */
@@ -739,18 +771,27 @@ static void init_mask_privacy(struct context *cnt){
             MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Failed to read mask privacy image. Mask privacy feature disabled.");
         } else {
             MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Mask privacy file \"%s\" loaded.", cnt->conf.mask_privacy);
-            //swap black vs white for efficient processing
+            start_cr = (cnt->imgs.height * cnt->imgs.width);
+            start_cb = start_cr + ((cnt->imgs.height * cnt->imgs.width)/4);
+
             for (indxrow = 0; indxrow < cnt->imgs.height; indxrow++) {
                 for (indxcol = 0; indxcol < cnt->imgs.width; indxcol++) {
                     if ( cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] == 0xff) {
-                        cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] = 0x00;
+                        if ((indxcol % 2 == 0) && (indxrow % 2 == 0) ){
+                            cnt->imgs.mask_privacy[ start_cr + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0xff;
+                            cnt->imgs.mask_privacy[ start_cb + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0xff;
+                        }
                     } else{
-                        cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] = 0xff;
+                        cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] = 0x00;
+                        if ((indxcol % 2 == 0) && (indxrow % 2 == 0) ){
+                            cnt->imgs.mask_privacy[ start_cr + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0x00;
+                            cnt->imgs.mask_privacy[ start_cb + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0x00;
+                        }
+
                     }
                 }
             }
         }
-
     } else {
         cnt->imgs.mask_privacy = NULL;
     }
@@ -811,6 +852,8 @@ static int motion_init(struct context *cnt)
     if (!cnt->conf.filepath)
         cnt->conf.filepath = mystrdup(".");
 
+    if (init_camera_type(cnt) != 0 ) return -3;
+
     /* set the device settings */
     cnt->video_dev = vid_start(cnt);
 
@@ -828,8 +871,8 @@ static int motion_init(struct context *cnt)
         cnt->imgs.motionsize = cnt->conf.width * cnt->conf.height;
         cnt->imgs.type = VIDEO_PALETTE_YUV420P;
     } else if (cnt->video_dev == -2) {
-        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%s: Could not fetch initial image from camera "
-                   "Motion only supports width and height modulo 8");
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Could not fetch initial image from camera ");
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Motion only supports width and height modulo 8");
         return -3;
     }
 
@@ -850,6 +893,15 @@ static int motion_init(struct context *cnt)
     /* Set output picture type */
     if (!strcmp(cnt->conf.picture_type, "ppm"))
         cnt->imgs.picture_type = IMAGE_TYPE_PPM;
+    else if (!strcmp(cnt->conf.picture_type, "webp")) {
+#ifdef HAVE_WEBP
+        cnt->imgs.picture_type = IMAGE_TYPE_WEBP;
+#else
+        /* Fallback to jpeg if webp was selected in the config file, but the support for it was not compiled in */
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: webp image format is not available, failing back to jpeg");
+        cnt->imgs.picture_type = IMAGE_TYPE_JPEG;
+#endif /* HAVE_WEBP */
+    }
     else
         cnt->imgs.picture_type = IMAGE_TYPE_JPEG;
 
@@ -894,13 +946,13 @@ static int motion_init(struct context *cnt)
     /* create a reference frame */
     alg_update_reference_frame(cnt, RESET_REF_FRAME);
 
-#if !defined(WITHOUT_V4L2) && !defined(__FreeBSD__)
+#if defined(HAVE_V4L2) && !defined(__FreeBSD__)
     /* open video loopback devices if enabled */
     if (cnt->conf.vidpipe) {
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "%s: Opening video loopback device for normal pictures");
 
         /* vid_startpipe should get the output dimensions */
-        cnt->pipe = vid_startpipe(cnt->conf.vidpipe, cnt->imgs.width, cnt->imgs.height, V4L2_PIX_FMT_YUV420);
+        cnt->pipe = vlp_startpipe(cnt->conf.vidpipe, cnt->imgs.width, cnt->imgs.height);
 
         if (cnt->pipe < 0) {
             MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Failed to open video loopback for normal pictures");
@@ -912,14 +964,14 @@ static int motion_init(struct context *cnt)
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "%s: Opening video loopback device for motion pictures");
 
         /* vid_startpipe should get the output dimensions */
-        cnt->mpipe = vid_startpipe(cnt->conf.motionvidpipe, cnt->imgs.width, cnt->imgs.height, V4L2_PIX_FMT_YUV420);
+        cnt->mpipe = vlp_startpipe(cnt->conf.motionvidpipe, cnt->imgs.width, cnt->imgs.height);
 
         if (cnt->mpipe < 0) {
             MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Failed to open video loopback for motion pictures");
             return -1;
         }
     }
-#endif /* !WITHOUT_V4L2 && !__FreeBSD__ */
+#endif /* HAVE_V4L2 && !__FreeBSD__ */
 
 #if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
     if (cnt->conf.database_type) {
@@ -1258,30 +1310,19 @@ static void motion_cleanup(struct context *cnt)
 
 static void mlp_mask_privacy(struct context *cnt){
 
-  /*  We do a bitwise OR of the image with the mask file.
-   *  The value for black in the mask file is 0x00 so when
-   *  it is bitwised OR with image, it will leave the original
-   *  value.  For this reason, we inverted the mask in the init
-   *  function.  The file is read in as black=blockout, white=keep
-   *  this function works as black=keep, white=blockout.  This also
-   *  results with the blockout section being white on the result.
-   *  This is done strictly for processing efficiency to lower cpu
-   *  since this function is called for every single image.
-   *  If user wants blockout in black instead of white, that means more cpu......
-  */
-
-  int indxrow;
-  int indxcol;
+  int indxloc;
 
   if (cnt->imgs.mask_privacy != NULL){
-      for (indxrow = 0; indxrow < cnt->imgs.height; indxrow++) {
-          for (indxcol = 0; indxcol < cnt->imgs.width; indxcol++) {
-              cnt->current_image->image[indxcol + (indxrow*cnt->imgs.width)] |= cnt->imgs.mask_privacy[indxcol + (indxrow*cnt->imgs.width)];
-          }
+      for (indxloc = 0; indxloc < (cnt->imgs.height * cnt->imgs.width); indxloc++) {
+          if (cnt->imgs.mask_privacy[indxloc] == 0x00)
+              cnt->current_image->image[indxloc] = 0x00;
       }
+      for (indxloc = (cnt->imgs.height * cnt->imgs.width); indxloc < cnt->imgs.size; indxloc++) {
+          if (cnt->imgs.mask_privacy[indxloc] == 0x00)
+              cnt->current_image->image[indxloc] = 0x80;
+      }
+
   }
-
-
 }
 
 static void mlp_areadetect(struct context *cnt){
@@ -2578,9 +2619,9 @@ static void motion_shutdown(void)
 
     free(cnt_list);
     cnt_list = NULL;
-#ifndef WITHOUT_V4L2
-    vid_cleanup();
-#endif
+
+    vid_mutex_destroy();
+
 }
 
 /**
@@ -2669,9 +2710,7 @@ static void motion_startup(int daemonize, int argc, char *argv[])
         }
     }
 
-#ifndef WITHOUT_V4L2
-    vid_init();
-#endif
+    vid_mutex_init();
 }
 
 /**
@@ -2856,9 +2895,9 @@ int main (int argc, char **argv)
             MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%s: Restarting motion.");
             motion_shutdown();
             restart = 0; /* only one reset for now */
-#ifndef WITHOUT_V4L2
+
             SLEEP(5, 0); // maybe some cameras needs less time
-#endif
+
             motion_startup(0, argc, argv); /* 0 = skip daemon init */
             MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%s: Motion restarted");
         }
