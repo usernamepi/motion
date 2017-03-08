@@ -2413,9 +2413,26 @@ static void *motion_loop(void *arg)
 {
     struct context *cnt = arg;
 
+    int bench_count = 0;
+    unsigned long bench_sec = 0;
+    double bench_fps = 0.0;
+
     if (motion_init(cnt) < 0)  goto err;
 
     while (!cnt->finish || cnt->makemovie) {
+
+        /* benchmark frame rate */
+        if (bench_sec > 10000000L)
+        {
+            bench_fps = bench_count / (bench_sec / 1000000.0);
+            MOTION_LOG (NTC, TYPE_ALL, NO_ERRNO, "%s: %d frames per %.2lf seconds, FPS=%.2lf",
+                bench_count, bench_sec / 1000000.0, bench_fps);
+            bench_count = 0;
+            bench_sec = 0;
+        }
+        bench_count++;
+        bench_sec += (cnt->timenow - cnt->timebefore);
+
         mlp_prepare(cnt);
         if (cnt->get_image) {
             mlp_resetimages(cnt);
