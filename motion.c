@@ -3383,6 +3383,11 @@ static void mystrftime_long (const struct context *cnt,
         sprintf(out, "%*llu", width, cnt->database_event_id);
         return;
     }
+    if (SPECIFIERWORD("ver")) {
+        sprintf(out, "%*s", width, VERSION);
+        return;
+    }
+
 
     // Not a valid modifier keyword. Log the error and ignore.
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,
