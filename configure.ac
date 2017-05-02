@@ -98,12 +98,9 @@ fi
 ##############################################################################
 ###  Check for threading
 ##############################################################################
-if test "${DISTRO}" != "Linux" && test "${DISTRO}" != "Darwin" ; then
-  AC_CHECK_HEADERS(pthread.h pthread_np.h,[THREADS="yes"],[THREADS="no"])
-  AC_MSG_CHECKING(for threads)
-  AC_MSG_RESULT($THREADS)
-else
-  AC_CHECK_HEADERS(pthread.h,[THREADS="yes"],[THREADS="no"])
+THREADS="yes"
+if test "${DISTRO}" = "FreeBSD"; then
+  AC_CHECK_HEADERS(pthread_np.h,[THREADS="yes"],[THREADS="no"])
   AC_MSG_CHECKING(for threads)
   AC_MSG_RESULT($THREADS)
 fi
@@ -204,13 +201,13 @@ AS_IF([test "x$with_ffmpeg" != "xno"], [
           export PKG_CONFIG_PATH
     ])
 
-       FFMPEG_DEPS="libavutil libavformat libavcodec libswscale"
+       FFMPEG_DEPS="libavutil libavformat libavcodec libswscale libavdevice"
        if pkg-config $FFMPEG_DEPS; then
                FFMPEG_CFLAGS=`pkg-config --cflags $FFMPEG_DEPS`
                FFMPEG_LIBS=`pkg-config --libs $FFMPEG_DEPS`
                HAVE_FFMPEG="yes"
        else
-              AC_MSG_ERROR([Required ffmpeg packages 'libavutil-dev libavformat-dev libavcodec-dev libswscale-dev' were not found.  Please check motion_guide.html and install necessary dependencies or use the '--without-ffmpeg' configuration option.])
+              AC_MSG_ERROR([Required ffmpeg packages 'libavutil-dev libavformat-dev libavcodec-dev libswscale-dev libavdevice-dev' were not found.  Please check motion_guide.html and install necessary dependencies or use the '--without-ffmpeg' configuration option.])
        fi
        AC_SUBST(FFMPEG_LIBS)
        AC_SUBST(FFMPEG_CFLAGS)

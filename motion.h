@@ -47,7 +47,8 @@
 #include <stdint.h>
 #include <pthread.h>
 
-#if defined(BSD)
+#ifdef __FreeBSD__
+//It is unknown whether it is safe to put this into the if/else below on Apple and BSD
 #include <pthread_np.h>
 #endif
 
@@ -169,8 +170,8 @@
 #define DEF_TIMELAPSE_MODE      "daily"
 
 /* Do not break this line into two or more. Must be ONE line */
-#define DEF_SQL_QUERY "sql_query insert into security(camera, filename, frame, file_type, time_stamp, event_time_stamp) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T', '%C')"
-
+#define DEF_SQL_QUERY_START "sql_query_start insert into security_events(camera, event_time_stamp) values('%t', '%Y-%m-%d %T')"
+#define DEF_SQL_QUERY       "sql_query insert into security_file(camera, filename, frame, file_type, time_stamp) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T')"
 
 /* OUTPUT Image types */
 #define IMAGE_TYPE_JPEG        0
@@ -309,6 +310,7 @@ struct images {
     unsigned char *common_buffer;
 
     unsigned char *mask_privacy;      /* Buffer for the privacy mask values */
+    unsigned char *mask_privacy_uv;   /* Buffer for the privacy U&V values */
 
     int *smartmask_buffer;
     int *labels;
@@ -399,6 +401,7 @@ struct context {
 
     int event_nr;
     int prev_event;
+    unsigned long long database_event_id;
     unsigned int lightswitch_framecounter;
     char text_event_string[PATH_MAX];        /* The text for conv. spec. %C -
                                                 we assume PATH_MAX normally 4096 characters is fine */
@@ -438,6 +441,7 @@ struct context {
 
 #ifdef HAVE_MYSQL
     MYSQL *database;
+
 #endif
 
 #ifdef HAVE_PGSQL

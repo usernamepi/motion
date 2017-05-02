@@ -110,11 +110,11 @@ struct config conf_template = {
     .mask_file =                       NULL,
     .mask_privacy =                    NULL,
     .smart_mask_speed =                0,
-#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
     .sql_log_image =                   1,
     .sql_log_snapshot =                1,
     .sql_log_movie =                   0,
     .sql_log_timelapse =               0,
+    .sql_query_start =                 DEF_SQL_QUERY_START,
     .sql_query =                       DEF_SQL_QUERY,
     .database_type =                   NULL,
     .database_dbname =                 NULL,
@@ -122,8 +122,7 @@ struct config conf_template = {
     .database_user =                   NULL,
     .database_password =               NULL,
     .database_port =                   0,
-    .database_busy_timeout =            0,
-#endif /* defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || define(HAVE_SQLITE3) */
+    .database_busy_timeout =           0,
     .on_picture_save =                 NULL,
     .on_motion_detected =              NULL,
     .on_area_detected =                NULL,
@@ -261,34 +260,7 @@ config_param config_params[] = {
     {
     "v4l2_palette",
     "# v4l2_palette allows one to choose preferable palette to be use by motion\n"
-    "# to capture from those supported by your videodevice. (default: 17)\n"
-    "# E.g. if your videodevice supports both V4L2_PIX_FMT_SBGGR8 and\n"
-    "# V4L2_PIX_FMT_MJPEG then motion will by default use V4L2_PIX_FMT_MJPEG.\n"
-    "# Setting v4l2_palette to 2 forces motion to use V4L2_PIX_FMT_SBGGR8\n"
-    "# instead.\n"
-    "#\n"
-    "# Values :\n"
-    "# V4L2_PIX_FMT_SN9C10X : 0  'S910'\n"
-    "# V4L2_PIX_FMT_SBGGR16 : 1  'BYR2'\n"
-    "# V4L2_PIX_FMT_SBGGR8  : 2  'BA81'\n"
-    "# V4L2_PIX_FMT_SPCA561 : 3  'S561'\n"
-    "# V4L2_PIX_FMT_SGBRG8  : 4  'GBRG'\n"
-    "# V4L2_PIX_FMT_SGRBG8  : 5  'GRBG'\n"
-    "# V4L2_PIX_FMT_PAC207  : 6  'P207'\n"
-    "# V4L2_PIX_FMT_PJPG    : 7  'PJPG'\n"
-    "# V4L2_PIX_FMT_MJPEG   : 8  'MJPEG'\n"
-    "# V4L2_PIX_FMT_JPEG    : 9  'JPEG'\n"
-    "# V4L2_PIX_FMT_RGB24   : 10 'RGB3'\n"
-    "# V4L2_PIX_FMT_SPCA501 : 11 'S501'\n"
-    "# V4L2_PIX_FMT_SPCA505 : 12 'S505'\n"
-    "# V4L2_PIX_FMT_SPCA508 : 13 'S508'\n"
-    "# V4L2_PIX_FMT_UYVY    : 14 'UYVY'\n"
-    "# V4L2_PIX_FMT_YUYV    : 15 'YUYV'\n"
-    "# V4L2_PIX_FMT_YUV422P : 16 '422P'\n"
-    "# V4L2_PIX_FMT_YUV420  : 17 'YU12'\n"
-    "# V4L2_PIX_FMT_Y10     : 18 'Y10'\n"
-    "# V4L2_PIX_FMT_Y12     : 19 'Y12'\n"
-    "# V4L2_PIX_FMT_GREY    : 20 'GREY'\n"
+    "# See motion_guide.html for the valid options and values.  (default: 17)\n"
     "#",
     0,
     CONF_OFFSET(v4l2_palette),
@@ -1461,8 +1433,6 @@ config_param config_params[] = {
     copy_string,
     print_string
     },
-
-#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
     {
     "sql_log_picture",
     "\n############################################################\n"
@@ -1500,22 +1470,16 @@ config_param config_params[] = {
     print_bool
     },
     {
+    "sql_query_start",
+    "# SQL query at event start.  See motion_guide.html\n",
+    0,
+    CONF_OFFSET(sql_query_start),
+    copy_string,
+    print_string
+    },
+    {
     "sql_query",
-    "# SQL query string that is sent to the database\n"
-    "# Use same conversion specifiers has for text features\n"
-    "# Additional special conversion specifiers are\n"
-    "# %n = the number representing the file_type\n"
-    "# %f = filename with full path\n"
-    "# Create tables :\n"
-    "##\n"
-    "# Mysql\n"
-    "# CREATE TABLE security (camera int, filename char(80) not null, frame int, file_type int, time_stamp timestamp(14), event_time_stamp timestamp(14));\n"
-    "#\n"
-    "# Postgresql\n"
-    "# CREATE TABLE security (camera int, filename char(80) not null, frame int, file_type int, time_stamp timestamp without time zone, event_time_stamp timestamp without time zone);\n"
-    "#\n"
-    "# Default value:\n"
-    "# insert into security(camera, filename, frame, file_type, time_stamp, text_event) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T', '%C')",
+    "# SQL query string that is sent to the database.  See motion_guide.html\n",
     0,
     CONF_OFFSET(sql_query),
     copy_string,
@@ -1582,7 +1546,6 @@ config_param config_params[] = {
     copy_int,
     print_int
     },
-#endif /* defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3) */
     {
     "video_pipe",
     "\n############################################################\n"

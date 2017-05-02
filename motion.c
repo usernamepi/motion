@@ -584,7 +584,7 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
         if ((cnt->imgs.image_ring[cnt->imgs.image_ring_out].flags & (IMAGE_SAVE | IMAGE_SAVED)) != IMAGE_SAVE)
             break;
 
-        /* Set inte global cotext that we are working with this image */
+        /* Set inte global context that we are working with this image */
         cnt->current_image = &cnt->imgs.image_ring[cnt->imgs.image_ring_out];
 
         if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].shot < cnt->conf.frame_limit) {
@@ -670,7 +670,7 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
         /* Mark the image as saved */
         cnt->imgs.image_ring[cnt->imgs.image_ring_out].flags |= IMAGE_SAVED;
 
-        /* Store it as a preview image, only if it have motion */
+        /* Store it as a preview image, only if it has motion */
         if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].flags & IMAGE_MOTION) {
             /* Check for most significant preview-shot when output_pictures=best */
             if (cnt->new_img & NEWIMG_BEST) {
@@ -720,19 +720,20 @@ static int init_camera_type(struct context *cnt){
         return 0;
     }
 
-#ifdef HAVE_V4L2
-    if (strncmp(cnt->conf.video_device,"/dev/video",10) == 0) {
-        cnt->camera_type = CAMERA_TYPE_V4L2;
-        return 0;
-    }
-#endif // HAVE_V4L2
-
 #ifdef HAVE_BKTR
     if (strncmp(cnt->conf.video_device,"/dev/bktr",9) == 0) {
         cnt->camera_type = CAMERA_TYPE_BKTR;
         return 0;
     }
 #endif // HAVE_BKTR
+
+#ifdef HAVE_V4L2
+    if (cnt->conf.video_device) {
+        cnt->camera_type = CAMERA_TYPE_V4L2;
+        return 0;
+    }
+#endif // HAVE_V4L2
+
 
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "%s: Unable to determine camera type (MMAL, Netcam, V4L2, BKTR)");
     return -1;
@@ -743,7 +744,7 @@ static void init_mask_privacy(struct context *cnt){
 
     int indxrow;
     int indxcol;
-    int start_cr, start_cb;
+    int start_cr, offset_cb, start_cb;
 
     FILE *picture;
 
@@ -756,6 +757,10 @@ static void init_mask_privacy(struct context *cnt){
              * width and height from imgs.
              */
             cnt->imgs.mask_privacy = get_pgm(picture, cnt->imgs.width, cnt->imgs.height);
+            /*
+             * We only need the "or" mask for the U & V chrominance area.
+             */
+            cnt->imgs.mask_privacy_uv = mymalloc((cnt->imgs.height * cnt->imgs.width) / 2);
             myfclose(picture);
         } else {
             MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "%s: Error opening mask file %s",
@@ -772,20 +777,28 @@ static void init_mask_privacy(struct context *cnt){
         } else {
             MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Mask privacy file \"%s\" loaded.", cnt->conf.mask_privacy);
             start_cr = (cnt->imgs.height * cnt->imgs.width);
-            start_cb = start_cr + ((cnt->imgs.height * cnt->imgs.width)/4);
+            offset_cb = ((cnt->imgs.height * cnt->imgs.width)/4);
+            start_cb = start_cr + offset_cb;
 
             for (indxrow = 0; indxrow < cnt->imgs.height; indxrow++) {
                 for (indxcol = 0; indxcol < cnt->imgs.width; indxcol++) {
-                    if ( cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] == 0xff) {
+                    int y_index = indxcol + (indxrow * cnt->imgs.width);
+                    if ( cnt->imgs.mask_privacy[y_index] == 0xff) {
                         if ((indxcol % 2 == 0) && (indxrow % 2 == 0) ){
-                            cnt->imgs.mask_privacy[ start_cr + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0xff;
-                            cnt->imgs.mask_privacy[ start_cb + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0xff;
+                            int uv_index = (indxcol/2) + ((indxrow * cnt->imgs.width)/4);
+                            cnt->imgs.mask_privacy[start_cr + uv_index] = 0xff;
+                            cnt->imgs.mask_privacy[start_cb + uv_index] = 0xff;
+                            cnt->imgs.mask_privacy_uv[uv_index] = 0x00;
+                            cnt->imgs.mask_privacy_uv[offset_cb + uv_index] = 0x00;
                         }
                     } else{
-                        cnt->imgs.mask_privacy[indxcol + (indxrow * cnt->imgs.width)] = 0x00;
+                        cnt->imgs.mask_privacy[y_index] = 0x00;
                         if ((indxcol % 2 == 0) && (indxrow % 2 == 0) ){
-                            cnt->imgs.mask_privacy[ start_cr + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0x00;
-                            cnt->imgs.mask_privacy[ start_cb + (indxcol/2) + ((indxrow * cnt->imgs.width)/4)] = 0x00;
+                            int uv_index = (indxcol/2) + ((indxrow * cnt->imgs.width)/4);
+                            cnt->imgs.mask_privacy[start_cr + uv_index] = 0x00;
+                            cnt->imgs.mask_privacy[start_cb + uv_index] = 0x00;
+                            cnt->imgs.mask_privacy_uv[uv_index] = 0x80;
+                            cnt->imgs.mask_privacy_uv[offset_cb + uv_index] = 0x80;
                         }
 
                     }
@@ -794,6 +807,7 @@ static void init_mask_privacy(struct context *cnt){
         }
     } else {
         cnt->imgs.mask_privacy = NULL;
+        cnt->imgs.mask_privacy_uv = NULL;
     }
 
 }
@@ -853,6 +867,13 @@ static int motion_init(struct context *cnt)
         cnt->conf.filepath = mystrdup(".");
 
     if (init_camera_type(cnt) != 0 ) return -3;
+
+    if ((cnt->conf.height == 0) || (cnt->conf.width == 0)) {
+        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%s: Invalid configuration dimensions %dx%d",cnt->conf.height,cnt->conf.width);
+        cnt->conf.height = DEF_HEIGHT;
+        cnt->conf.width = DEF_WIDTH;
+        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "%s: Using default dimensions %dx%d",cnt->conf.height,cnt->conf.width);
+    }
 
     /* set the device settings */
     cnt->video_dev = vid_start(cnt);
@@ -1004,6 +1025,7 @@ static int motion_init(struct context *cnt)
         if ((!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
             // close database to be sure that we are not leaking
             mysql_close(cnt->database);
+            cnt->database_event_id = 0;
 
             cnt->database = mymalloc(sizeof(MYSQL));
             mysql_init(cnt->database);
@@ -1117,19 +1139,18 @@ static int motion_init(struct context *cnt)
 
     /* Prevent first few frames from triggering motion... */
     cnt->moved = 8;
-    /* 2 sec startup delay so FPS is calculated correct */
-    cnt->startup_frames = cnt->conf.frame_limit * 2;
-
     /* Initialize the double sized characters if needed. */
     if (cnt->conf.text_double)
         cnt->text_size_factor = 2;
     else
         cnt->text_size_factor = 1;
 
-
     /* Work out expected frame rate based on config setting */
     if (cnt->conf.frame_limit < 2)
         cnt->conf.frame_limit = 2;
+
+    /* 2 sec startup delay so FPS is calculated correct */
+    cnt->startup_frames = (cnt->conf.frame_limit * 2) + cnt->conf.pre_capture + cnt->conf.minimum_motion_frames;
 
     cnt->required_frame_time = 1000000L / cnt->conf.frame_limit;
 
@@ -1197,6 +1218,10 @@ static int motion_init(struct context *cnt)
     cnt->passflag = 0;  //only purpose to flag first frame
     cnt->rolling_frame = 0;
 
+    if (cnt->conf.emulate_motion) {
+        MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Emulating motion");
+    }
+
     return 0;
 }
 
@@ -1258,6 +1283,9 @@ static void motion_cleanup(struct context *cnt)
     if (cnt->imgs.mask_privacy) free(cnt->imgs.mask_privacy);
     cnt->imgs.mask_privacy = NULL;
 
+    if (cnt->imgs.mask_privacy_uv) free(cnt->imgs.mask_privacy_uv);
+    cnt->imgs.mask_privacy_uv = NULL;
+
     free(cnt->imgs.common_buffer);
     cnt->imgs.common_buffer = NULL;
 
@@ -1290,6 +1318,7 @@ static void motion_cleanup(struct context *cnt)
 #ifdef HAVE_MYSQL
         if ( (!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
             mysql_close(cnt->database);
+            cnt->database_event_id = 0;
         }
 #endif /* HAVE_MYSQL */
 
@@ -1310,18 +1339,53 @@ static void motion_cleanup(struct context *cnt)
 
 static void mlp_mask_privacy(struct context *cnt){
 
-  int indxloc;
+  if (cnt->imgs.mask_privacy == NULL) return;
 
-  if (cnt->imgs.mask_privacy != NULL){
-      for (indxloc = 0; indxloc < (cnt->imgs.height * cnt->imgs.width); indxloc++) {
-          if (cnt->imgs.mask_privacy[indxloc] == 0x00)
-              cnt->current_image->image[indxloc] = 0x00;
-      }
-      for (indxloc = (cnt->imgs.height * cnt->imgs.width); indxloc < cnt->imgs.size; indxloc++) {
-          if (cnt->imgs.mask_privacy[indxloc] == 0x00)
-              cnt->current_image->image[indxloc] = 0x80;
-      }
+  /*
+   * This function uses long operations to process 4 (32 bit) or 8 (64 bit)
+   * bytes at a time, providing a significant boost in performance.
+   * Then a trailer loop takes care of any remaining bytes.
+   */
+  int pixels = cnt->imgs.height * cnt->imgs.width;
+  unsigned char *image = cnt->current_image->image;
+  const unsigned char *mask = cnt->imgs.mask_privacy;
 
+  // Mask brightness.
+  //
+  int index = pixels;
+
+  while (index >= sizeof(unsigned long)) {
+     *((unsigned long *)image) &= *((unsigned long *)mask);
+     image += sizeof(unsigned long);
+     mask += sizeof(unsigned long);
+     index -= sizeof(unsigned long);
+  }
+  while (--index >= 0) {
+     *(image++) &= *(mask++);
+  }
+
+  // Mask chrominance.
+  //
+  index = cnt->imgs.size - pixels;
+  const unsigned char *maskuv = cnt->imgs.mask_privacy_uv;
+
+  while (index >= sizeof(unsigned long)) {
+     index -= sizeof(unsigned long);
+     /*
+      * Replace the masked bytes with 0x080. This is done using two masks:
+      * the normal privacy mask is used to clear the masked bits, the
+      * "or" privacy mask is used to write 0x80. The benefit of that method
+      * is that we process 4 or 8 bytes in just two operations.
+      */
+     *((unsigned long *)image) &= *((unsigned long *)mask);
+     mask += sizeof(unsigned long);
+     *((unsigned long *)image) |= *((unsigned long *)maskuv);
+     maskuv += sizeof(unsigned long);
+     image += sizeof(unsigned long);
+  }
+  while (--index >= 0) {
+     if (*(mask++) == 0x00) *image = 0x80; // Mask last remaining bytes.
+     image += 1;
   }
 }
 
@@ -1961,7 +2025,6 @@ static void mlp_actions(struct context *cnt){
      */
     if (cnt->conf.emulate_motion && (cnt->startup_frames == 0)) {
         cnt->detecting_motion = 1;
-        MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, "%s: Emulating motion");
         if (cnt->conf.post_capture > 0) {
             /* Setup the postcap counter */
             cnt->postcap = cnt->conf.post_capture;
@@ -2829,7 +2892,7 @@ int main (int argc, char **argv)
 
     motion_startup(1, argc, argv);
 
-    ffmpeg_init();
+    ffmpeg_global_init();
 
 #ifdef HAVE_MYSQL
     if (mysql_library_init(0, NULL, NULL)) {
@@ -3051,7 +3114,7 @@ int main (int argc, char **argv)
 
     } while (restart); /* loop if we're supposed to restart */
 
-    ffmpeg_finalise();
+    ffmpeg_global_deinit();
 
     // Be sure that http control exits fine
     cnt_list[0]->webcontrol_finish = 1;
@@ -3297,6 +3360,16 @@ static void mystrftime_long (const struct context *cnt,
         sprintf(out, "%*d", width, cnt->movie_fps);
         return;
     }
+    if (SPECIFIERWORD("dbeventid")) {
+        sprintf(out, "%*llu", width, cnt->database_event_id);
+        return;
+    }
+    if (SPECIFIERWORD("ver")) {
+        sprintf(out, "%*s", width, VERSION);
+        return;
+    }
+
+
     // Not a valid modifier keyword. Log the error and ignore.
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,
         "%s: invalid format specifier keyword %*.*s", l, l, word);
