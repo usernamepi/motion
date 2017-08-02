@@ -38,6 +38,7 @@
 #include <signal.h>
 #include <limits.h>
 #include <errno.h>
+#include <assert.h>
 #include <sys/time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -61,8 +62,10 @@
 #define MOTION_PTHREAD_SETNAME(name)  pthread_setname_np(name)
 #elif defined(BSD)
 #define MOTION_PTHREAD_SETNAME(name)  pthread_set_name_np(pthread_self(), name)
-#else
+#elif HAVE_PTHREAD_SETNAME_NP
 #define MOTION_PTHREAD_SETNAME(name)  pthread_setname_np(pthread_self(), name)
+#else
+#define MOTION_PTHREAD_SETNAME(name)
 #endif
 
 /**
@@ -170,8 +173,8 @@
 #define DEF_TIMELAPSE_MODE      "daily"
 
 /* Do not break this line into two or more. Must be ONE line */
-#define DEF_SQL_QUERY "sql_query insert into security(camera, filename, frame, file_type, time_stamp, event_time_stamp) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T', '%C')"
-
+#define DEF_SQL_QUERY_START "sql_query_start insert into security_events(camera, event_time_stamp) values('%t', '%Y-%m-%d %T')"
+#define DEF_SQL_QUERY       "sql_query insert into security_file(camera, filename, frame, file_type, time_stamp) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T')"
 
 /* OUTPUT Image types */
 #define IMAGE_TYPE_JPEG        0
@@ -310,6 +313,7 @@ struct images {
     unsigned char *common_buffer;
 
     unsigned char *mask_privacy;      /* Buffer for the privacy mask values */
+    unsigned char *mask_privacy_uv;   /* Buffer for the privacy U&V values */
 
     int *smartmask_buffer;
     int *labels;
@@ -326,6 +330,12 @@ struct images {
     int largest_label;
 };
 
+enum FLIP_TYPE {
+    FLIP_TYPE_NONE,
+    FLIP_TYPE_HORIZONTAL,
+    FLIP_TYPE_VERTICAL
+};
+
 /* Contains data for image rotation, see rotate.c. */
 struct rotdata {
     /* Temporary buffer for 90 and 270 degrees rotation. */
@@ -337,6 +347,13 @@ struct rotdata {
      * while Motion is running just causes problems.
      */
     int degrees;
+
+    /*
+     * Rotate image over the Horizontal or Vertical axis.
+     * As with degrees, this is the value actually used, and value of conf.flip_axis
+     * cannot be used.
+     */
+    enum FLIP_TYPE axis;
     /*
      * Capture width and height - different from output width and height if
      * rotating 90 or 270 degrees.
@@ -400,6 +417,7 @@ struct context {
 
     int event_nr;
     int prev_event;
+    unsigned long long database_event_id;
     unsigned int lightswitch_framecounter;
     char text_event_string[PATH_MAX];        /* The text for conv. spec. %C -
                                                 we assume PATH_MAX normally 4096 characters is fine */
@@ -439,6 +457,7 @@ struct context {
 
 #ifdef HAVE_MYSQL
     MYSQL *database;
+
 #endif
 
 #ifdef HAVE_PGSQL

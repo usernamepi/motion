@@ -45,7 +45,7 @@ if test "${DISTRO}" = "Darwin"; then
   TEMP_LDFLAGS="${LDFLAGS} -L/sw/lib"
   TEMP_LIBS="-L/sw/lib"
 else
-  if test "x${DISTRO}" != "Linux"; then
+  if test "${DISTRO}" != "Linux"; then
     TEMP_CFLAGS="${CFLAGS} -I/usr/local/include"
     TEMP_CPPFLAGS="${CPPFLAGS} -I/usr/local/include"
     TEMP_LDFLAGS="${LDFLAGS} -L/usr/local/lib"
@@ -98,12 +98,9 @@ fi
 ##############################################################################
 ###  Check for threading
 ##############################################################################
-if test "${DISTRO}" != "Linux" && test "${DISTRO}" != "Darwin" ; then
-  AC_CHECK_HEADERS(pthread.h pthread_np.h,[THREADS="yes"],[THREADS="no"])
-  AC_MSG_CHECKING(for threads)
-  AC_MSG_RESULT($THREADS)
-else
-  AC_CHECK_HEADERS(pthread.h,[THREADS="yes"],[THREADS="no"])
+THREADS="yes"
+if test "${DISTRO}" = "FreeBSD"; then
+  AC_CHECK_HEADERS(pthread_np.h,[THREADS="yes"],[THREADS="no"])
   AC_MSG_CHECKING(for threads)
   AC_MSG_RESULT($THREADS)
 fi
@@ -111,6 +108,16 @@ if test x$THREADS = xyes; then
   TEMP_LIBS="$TEMP_LIBS -pthread"
   TEMP_CFLAGS="${TEMP_CFLAGS} -D_THREAD_SAFE"
 fi
+
+##############################################################################
+###  Check for pthread_setname_np (nonstandard GNU extension)
+##############################################################################
+AC_MSG_CHECKING([for pthread_setname_np])
+AC_COMPILE_IFELSE(
+    [AC_LANG_PROGRAM([#include <pthread.h>], [pthread_setname_np(pthread_self(), "name")])],
+    [AC_DEFINE([HAVE_PTHREAD_SETNAME_NP], [1], [Define if you have pthread_setname_np function.])
+    AC_MSG_RESULT([yes])],
+    [AC_MSG_RESULT([no])] )
 
 ##############################################################################
 ###  Check for JPG
@@ -135,7 +142,7 @@ AM_COND_IF([FOUND_PKGCONFIG],,[AC_MSG_ERROR([Required package 'pkg-config' not f
 AC_ARG_WITH([webp],
     AS_HELP_STRING([--with-webp],
       [Compile with Webp image support]),
-    WEBP="yes",
+    WEBP="$withval",
     WEBP="no")
 
 HAVE_WEBP=""

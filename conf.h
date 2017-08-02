@@ -28,6 +28,7 @@ struct config {
     int height;
     int camera_id;
     int quality;
+    const char *flip_axis;
     int rotate_deg;
     int max_changes;
     int threshold_tune;
@@ -104,6 +105,7 @@ struct config {
     int sql_log_snapshot;
     int sql_log_movie;
     int sql_log_timelapse;
+    const char *sql_query_start;
     const char *sql_query;
     const char *database_type;
     const char *database_dbname;
