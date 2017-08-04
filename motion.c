@@ -2487,7 +2487,7 @@ static void *motion_loop(void *arg)
         if (bench_sec > 10000000L)
         {
             bench_fps = bench_count / (bench_sec / 1000000.0);
-            MOTION_LOG (NTC, TYPE_ALL, NO_ERRNO, "%d frames per %.2lf seconds, FPS=%.2lf",
+            MOTION_LOG (INF, TYPE_ALL, NO_ERRNO, "%d frames per %.2lf seconds, FPS=%.2lf",
                 bench_count, bench_sec / 1000000.0, bench_fps);
             bench_count = 0;
             bench_sec = 0;
