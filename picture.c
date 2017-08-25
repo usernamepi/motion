@@ -22,6 +22,10 @@
 #include <jpeglib.h>
 #include <jerror.h>
 
+#if defined(__ARM_NEON)
+#include <arm_neon.h>
+#endif
+
 /*
  * The following declarations and 5 functions are jpeg related
  * functions used by put_jpeg_grey_memory and put_jpeg_yuv420p_memory.
@@ -1237,9 +1241,49 @@ void preview_save(struct context *cnt)
  *
  * Returns pointer to scaled image
  */
+#if defined(__ARM_NEON)
 
 unsigned char *scale_half_yuv420p(int origwidth, int origheight,
-                int subwidth, int subheight, int subsize, unsigned char *img)
+                                  int subwidth, int subheight, int subsize, unsigned char *img)
+{
+    /* allocate buffer for resized image */
+    unsigned char *scaled_img = mymalloc (subsize);
+
+    int x, y;
+    unsigned char *out = scaled_img;
+    unsigned char *uv = &img[origwidth * origheight];
+    for (y = 0; y < origheight; y += 2)
+    {
+        for (x = 0; x <= origwidth - 16; x += 16)
+        {
+            uint8x8x2_t t = vld2_u8(&img[y * origwidth + x]);
+            uint8x8_t r = vrhadd_u8(t.val[0], t.val[1]);
+            vst1_u8(out, r);
+            out += 8;
+        }
+        for (; x < origwidth; x+=2)
+            *out++ = (img[y * origwidth + x] + img[y * origwidth + x] + 1) / 2;
+    }
+
+    for (y = 0; y < origheight / 2; y+=2)
+    {
+        for (x = 0; x <= origwidth - 16; x += 16)
+        {
+            uint8x8x2_t t = vld2_u8(&uv[(y * origwidth) + x]);
+            uint8x8_t r = vrhadd_u8(t.val[0], t.val[1]);
+            vst1_u8(out, r);
+            out += 8;
+        }
+        for (; x < origwidth; x += 2)
+        {
+            *out++ = (uv[(y * origwidth) + x] + uv[(y * origwidth) + (x + 1)] + 1) / 2;
+        }
+    }
+    return scaled_img;
+}
+#else
+unsigned char *scale_half_yuv420p(int origwidth, int origheight,
+                                  int subwidth, int subheight, int subsize, unsigned char *img)
 {
     /* allocate buffer for resized image */
     unsigned char *scaled_img = mymalloc (subsize);
@@ -1250,12 +1294,13 @@ unsigned char *scale_half_yuv420p(int origwidth, int origheight,
             scaled_img[i++] = img[y * origwidth + x];
 
     for (y = 0; y < origheight / 2; y+=2)
-       for (x = 0; x < origwidth; x += 4)
-       {
-          scaled_img[i++] = img[(origwidth * origheight) + (y * origwidth) + x];
-          scaled_img[i++] = img[(origwidth * origheight) + (y * origwidth) + (x + 1)];
-       }
+        for (x = 0; x < origwidth; x += 4)
+        {
+            scaled_img[i++] = img[(origwidth * origheight) + (y * origwidth) + x];
+            scaled_img[i++] = img[(origwidth * origheight) + (y * origwidth) + (x + 1)];
+        }
 
     return scaled_img;
 }
+#endif
 
