@@ -1243,11 +1243,10 @@ void preview_save(struct context *cnt)
  */
 #if defined(__ARM_NEON)
 
-unsigned char *scale_half_yuv420p(int origwidth, int origheight,
-                                  int subwidth, int subheight, int subsize, unsigned char *img)
+unsigned char *scale_half_yuv420p(int origwidth, int origheight, unsigned char *img)
 {
     /* allocate buffer for resized image */
-    unsigned char *scaled_img = mymalloc (subsize);
+    unsigned char *scaled_img = mymalloc ((origwidth/2 * origheight/2) * 3 / 2);
 
     int x, y;
     unsigned char *out = scaled_img;
@@ -1281,12 +1280,12 @@ unsigned char *scale_half_yuv420p(int origwidth, int origheight,
     }
     return scaled_img;
 }
+
 #else
-unsigned char *scale_half_yuv420p(int origwidth, int origheight,
-                                  int subwidth, int subheight, int subsize, unsigned char *img)
+unsigned char *scale_half_yuv420p(int origwidth, int origheight, unsigned char *img)
 {
     /* allocate buffer for resized image */
-    unsigned char *scaled_img = mymalloc (subsize);
+    unsigned char *scaled_img = mymalloc ((origwidth/2 * origheight/2) * 3 / 2);
 
     int i = 0, x, y;
     for (y = 0; y < origheight; y+=2)
