@@ -1,4 +1,4 @@
-.TH MOTION 1 2016-09-28 "Motion" "Motion Options and Config Files"
+.TH MOTION 1 2017-10-29 "Motion" "Motion Options and Config Files"
 .SH NAME
 motion \-   Detect motion using a video4linux device or network camera
 .SH SYNOPSIS
@@ -26,22 +26,25 @@ Run in daemon mode.
 Run in non-daemon mode.
 .TP
 .B \-s
-Run in setup mode. Also forces non-daemon mode
+Run in setup mode. Also forces non-daemon mode.
+.TP
+.B \-o
+Dump config options to log (for support purposes).
 .TP
 .B \-d
 Run with message log level 1-9.
 .TP
 .B \-k
-Run with message log type 1-9
+Run with message log type 1-9.
 .TP
 .B \-l
-Full path and file name for the log file
+Full path and file name for the log file.
 .TP
 .B \-p
 Full path and filename for process id file (pid file). E.g /var/run/motion.pid. Default is not defined. Pid file is only created when Motion is started in daemon mode.
 .TP
 .B \-m
-Start in pause mode
+Start in pause mode.
 .TP
 .SH "CONFIG FILE OPTIONS"
 These are the options that can be used in the config file.
@@ -303,6 +306,20 @@ The rotation affects all saved images as well as movies.
 .RE
 
 .TP
+.B flip_axis
+.RS
+.nf
+Values: none, v, h
+Default: none
+Description:
+.fi
+.RS
+Flip the images vertically or horizontally.
+The flip affects all saved images as well as movies.
+.RE
+.RE
+
+.TP
 .B width
 .RS
 .nf
@@ -376,9 +393,36 @@ http://
 ftp://
 mjpg://
 rtsp://
+rtmp://
 mjpeg://
 file://
 v4l2://
+.RE
+
+The connection string is camera specific.
+It is usually the same as what other video playing applications would use to connect to the camera stream.
+Motion currently only supports basic authentication for the cameras.
+Digest is not currently supported.
+Basic authentication can be specified in the URL or via the netcam_userpass option.
+.RE
+.RE
+
+.TP
+.B netcam_highres
+.RS
+.nf
+Values: User specified string
+Default: None
+Description:
+.fi
+.RS
+Full connection URL string to use to connect to a high resolution network camera.
+The URL must provide a stream of images instead of only a static image.
+The following prefixes are recognized
+
+.RS
+rtsp://
+rtmp://
 .RE
 
 The connection string is camera specific.
@@ -428,7 +472,7 @@ Description:
 .RS
 This setting is to keep-alive (open) the network socket between requests.
 When used, this option should improve performance on compatible net cameras.
-This option is not applicable for the rtsp:// and mjpeg:// formats.
+This option is not applicable for the rtsp://, rtmp:// and mjpeg:// formats.
 .RE
 .RE
 
@@ -471,7 +515,7 @@ Default: on
 Description:
 .fi
 .RS
-When using a RTSP connection for a network camera, use a TCP transport instead of UDP.
+When using a RTSP/RTMP connection for a network camera, use a TCP transport instead of UDP.
 The UDP transport frequently results in "smeared" corrupt images.
 .RE
 .RE
@@ -948,46 +992,6 @@ Use ffmpeg to encode movies with only the pixels moving object (ghost images)
 .RE
 
 .TP
-.B ffmpeg_timelapse
-.RS
-.nf
-Values: 0 to unlimited
-Default: 0
-Description:
-.fi
-.RS
-Number of seconds between frame captures for a timelapse movie.
-Specify 0 to disable the timelapse.
-.RE
-.RE
-
-.TP
-.B ffmpeg_timelapse_mode
-.RS
-.nf
-Values:
-.RS
-hourly
-.br
-daily
-.br
-weekly-sunday
-.br
-weekly-monday
-.br
-monthly
-.br
-manual
-.RE
-Default: daily
-Description:
-.fi
-.RS
-File rollover mode for the timelapse video.
-.RE
-.RE
-
-.TP
 .B ffmpeg_bps
 .RS
 .nf
@@ -1024,11 +1028,6 @@ A value of 1 is worst quality versus a value of 100 is best quality.
 .nf
 Values:
 .RS
-Timelapse videos:
-.RS
-mpg - Creates mpg file with mpeg-2 encoding.
-mpeg4 - Creates avi file with the default encoding.
-.RE
 Motion videos:
 .RS
 mpeg4 - Creates .avi file
@@ -1046,12 +1045,6 @@ Default: mpeg4
 Description:
 .fi
 .RS
-The container and codec to use when creating videos.
-When creating timelapse videos, there are only two options and the processing varies due to container/codec limitations.
-For mpg timelapse videos, if motion is shutdown and restarted, new pics will be appended
-to any previously created file with name indicated for timelapse.
-For mpeg4 timelapse videos, if motion is shutdown and restarted, new pics will create a
-new file with the name indicated for timelapse.
 For regular motion videos, the container/codec must be available in the ffmpeg installed on the computer.
 .RE
 .RE
@@ -1066,6 +1059,79 @@ Description:
 .fi
 .RS
 When creating videos, should frames be duplicated in order to keep up with the requested frames per second
+.RE
+.RE
+
+.TP
+.B timelapse_fps
+.RS
+.nf
+Values: 0 to unlimited
+Default: 30
+Description:
+.fi
+.RS
+Frames per second used for playback of the timelapse video.
+.RE
+.RE
+
+.TP
+.B timelapse_interval
+.RS
+.nf
+Values: 0 to unlimited
+Default: 0
+Description:
+.fi
+.RS
+Number of seconds between frame captures for a timelapse movie.
+Specify 0 to disable the timelapse.
+.RE
+.RE
+
+.TP
+.B timelapse_mode
+.RS
+.nf
+Values:
+.RS
+hourly
+.br
+daily
+.br
+weekly-sunday
+.br
+weekly-monday
+.br
+monthly
+.br
+manual
+.RE
+Default: daily
+Description:
+.fi
+.RS
+File rollover mode for the timelapse video.
+.RE
+.RE
+
+.TP
+.B timelapse_codec
+.RS
+.nf
+Values:
+.RS
+mpg - Creates mpg file with mpeg-2 encoding.
+mpeg4 - Creates avi file with the default encoding.
+.RE
+Default: mpg
+Description:
+.fi
+.RS
+For mpg timelapse videos, if motion is shutdown and restarted, new pics will be appended
+to any previously created file with name indicated for timelapse.
+For mpeg4 timelapse videos, if motion is shutdown and restarted, new pics will create a
+new file with the name indicated for timelapse.
 .RE
 .RE
 
@@ -1347,6 +1413,19 @@ This option is the port number that the mini-http server listens on for streams 
 .RE
 
 .TP
+.B substream_port
+.RS
+.nf
+Values: 0 to port number limit
+Default: 0
+Description:
+.fi
+.RS
+This option is the substream port number that the mini-http server listens on for streams of the pictures.
+.RE
+.RE
+
+.TP
 .B stream_quality
 .RS
 .nf
@@ -1528,6 +1607,26 @@ Description:
 .fi
 .RS
 The authentication method to use for viewing the web control.
+.RE
+.RE
+
+.TP
+.B webcontrol_parms
+.RS
+.nf
+Values:
+.RS
+0 = No parameters available to change on web control
+1 = Limited list of parameters available to change
+2 = Advanced list of parameters (usually requires restart to become effective)
+3 = Restricted list of parameters (User IDs, passwords, commands to execute, etc)
+.RE
+Default: 0
+Description:
+.fi
+.RS
+The type of parameters that are able to be modified via the web interface.  This parameter can never be modified
+via the web interface and must be specified directly in the configuration file.
 .RE
 .RE
 
@@ -2134,4 +2233,5 @@ Jeroen Vreeken (pe1rxq@amsat.org),
 Folkert van Heusden,
 Kenneth Lavrsen (kenneth@lavrsen.dk),
 Juan Angulo Moreno <juan@apuntale.com>,
+the motion-project team,
 and many others

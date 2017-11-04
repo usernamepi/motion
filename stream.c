@@ -41,6 +41,27 @@ struct auth_param {
     struct config *conf;
 };
 
+/**
+ * get_host
+ *      Gets the host (IP) of a client from the socket file descriptor
+ * Returns nothing
+ */
+static void get_host(char *buf, int fd)
+{
+    struct sockaddr_storage client;
+    socklen_t client_len = sizeof(client);
+    int res = getpeername(fd, (struct sockaddr *)&client, &client_len);
+    if (res != 0)
+        return;
+
+    char host[NI_MAXHOST];
+    res = getnameinfo((struct sockaddr *)&client, client_len, host, sizeof(host), NULL, 0, NI_NUMERICHOST);
+    if (res != 0)
+        return;
+
+    strncpy(buf, host, NI_MAXHOST - 1);
+}
+
 pthread_mutex_t stream_auth_mutex;
 
 /**
@@ -219,6 +240,9 @@ static void* handle_basic_auth(void* param)
 
         if (strcmp(auth, authentication)) {
             free(authentication);
+            char host[NI_MAXHOST] = "unknown";
+            get_host(host, p->sock);
+            MOTION_LOG(ALR, TYPE_STREAM, NO_ERRNO, "motion-stream - failed auth attempt from %s", host);
             goto Error;
         }
         free(authentication);
@@ -565,8 +589,14 @@ static void* handle_md5_digest(void* param)
         DigestCalcHA1((char*)"md5", server_user, (char*)STREAM_REALM, server_pass, (char*)server_nonce, (char*)NULL, HA1);
         DigestCalcResponse(HA1, server_nonce, NULL, NULL, (char*)"", (char*)"GET", server_uri, HA2, server_response);
 
-        if (strcmp(server_response, response) == 0)
+        if (strcmp(server_response, response) == 0){
             break;
+        } else {
+            char host[NI_MAXHOST] = "unknown";
+            get_host(host, p->sock);
+            MOTION_LOG(ALR, TYPE_STREAM, NO_ERRNO, "motion-stream - failed auth attempt from %s", host);
+        }
+
 Error:
         rand1 = (unsigned int)(42000000.0 * rand() / (RAND_MAX + 1.0));
         rand2 = (unsigned int)(42000000.0 * rand() / (RAND_MAX + 1.0));
@@ -1112,8 +1142,9 @@ void stream_put(struct context *cnt, struct stream *stm, int *stream_count, unsi
 
     /* will point either to the original image or a scaled down */
     unsigned char *img = image;
-    int image_width = cnt->imgs.width, image_height = cnt->imgs.height, image_size = cnt->imgs.size;
-
+    int image_width = cnt->imgs.width;
+    int image_height = cnt->imgs.height;
+    int image_size = cnt->imgs.size_norm;
     /*
      * Timeout struct used to timeout the time we wait for a client
      * and we do not wait at all.
@@ -1146,8 +1177,7 @@ void stream_put(struct context *cnt, struct stream *stm, int *stream_count, unsi
         return;
 
     /* substream put - scale image down and update pointer to the scaled buffer */
-    if (do_scale_down)
-    {
+    if (do_scale_down) {
         /* TODO for now just scale 50%, better resize image to a config predefined size */
 
         int origwidth = cnt->imgs.width, origheight = cnt->imgs.height;
@@ -1178,7 +1208,7 @@ void stream_put(struct context *cnt, struct stream *stm, int *stream_count, unsi
          * than necessary, but it is difficult to estimate the
          * minimum size actually required.
          */
-        tmpbuffer = stream_tmpbuffer(cnt->imgs.size);
+        tmpbuffer = stream_tmpbuffer(cnt->imgs.size_norm);
 
         /* Check if allocation was ok. */
         if (tmpbuffer) {
