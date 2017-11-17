@@ -86,7 +86,7 @@ void test_locate_center_size(int width, int height, unsigned char * out, int * l
     img.width = width;
     img.height = height;
     img.labelsize_max = 1;
-    img.out = out;
+    img.img_motion.image_norm = out;
     img.labels = lables;
 
     struct coord cent, cent_ref;
@@ -147,13 +147,13 @@ static void test_alg_diff_standart_one_case(struct context *cnt, unsigned char *
     uint64_t first_start, first_end, second_start, second_end;
 
     struct images *imgs = &cnt->imgs;
-    imgs->out = memset(out_ref, 0XD7, sizeof(out_ref));
+    imgs->img_motion.image_norm = memset(out_ref, 0XD7, sizeof(out_ref));
     imgs->smartmask_buffer = memset(smartmask_buffer_ref, 0xCA, sizeof(smartmask_buffer_ref));
     TS_MARK(first_start);
     diffs_ref = alg_diff_standard_c(cnt, new);
     TS_MARK(first_end);
 
-    imgs->out = memset(out, 0XD7, sizeof(out));;
+    imgs->img_motion.image_norm = memset(out, 0XD7, sizeof(out));;
     imgs->smartmask_buffer = memset(smartmask_buffer, 0xCA, sizeof(smartmask_buffer));
     TS_MARK(second_start);
     diffs = alg_diff_standard(cnt, new);
@@ -306,11 +306,11 @@ static void test_alg_update_reference_frame(int width, int height, unsigned char
     struct context cnt;
     cnt.lastrate = 3;
     cnt.noise = noise;
-    cnt.imgs.image_virgin = image_virgin;
+    cnt.imgs.image_virgin.image_norm = image_virgin;
     cnt.imgs.smartmask_final = smartmask;
-    cnt.imgs.out = out;
+    cnt.imgs.img_motion.image_norm = out;
     cnt.imgs.motionsize = width * height;
-    cnt.imgs.size = width * height;
+    cnt.imgs.size_norm = width * height;
 
     test_alg_update_reference_frame_one_case(&cnt, ref_buf, ref_buf_ref,
                                              ref_dyn_buf, ref_dyn_buf_ref,
