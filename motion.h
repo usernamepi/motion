@@ -100,12 +100,6 @@ struct image_data;
 #define ATTRIBUTE_UNUSED
 #endif
 
-/* strerror_r() XSI vs GNU */
-#if (defined(BSD)) || ((_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && ! _GNU_SOURCE)
-#define XSI_STRERROR_R
-#endif
-
-
 /*
  *  The macro below defines a version of sleep using nanosleep
  * If a signal such as SIG_CHLD interrupts the sleep we just continue sleeping
@@ -187,10 +181,6 @@ struct image_data;
 #define DEF_TIMEPATH            "%Y%m%d-timelapse"
 
 #define DEF_TIMELAPSE_MODE      "daily"
-
-/* Do not break this line into two or more. Must be ONE line */
-#define DEF_SQL_QUERY_START "sql_query_start insert into security_events(camera, event_time_stamp) values('%t', '%Y-%m-%d %T')"
-#define DEF_SQL_QUERY       "sql_query insert into security_file(camera, filename, frame, file_type, time_stamp) values('%t', '%f', '%q', '%n', '%Y-%m-%d %T')"
 
 /* OUTPUT Image types */
 #define IMAGE_TYPE_JPEG        0
