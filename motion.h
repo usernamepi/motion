@@ -467,12 +467,8 @@ struct context {
     struct stream substream;
     int substream_count;
 
-<<<<<<< HEAD
     char customtext[PATH_MAX];
-=======
     char hostname[PATH_MAX];
-
->>>>>>> string-templates
 
 #if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
     int sql_mask;
