@@ -3558,9 +3558,11 @@ static void mystrftime_long (const struct context *cnt,
     }
     if (SPECIFIERWORD("ver")) {
         sprintf(out, "%*s", width, VERSION);
+    }
+    if (SPECIFIERWORD("custom")) {
+        snprintf(out, PATH_MAX, "%s", cnt->customtext);
         return;
     }
-
 
     // Not a valid modifier keyword. Log the error and ignore.
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,
