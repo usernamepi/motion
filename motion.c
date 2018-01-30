@@ -3523,6 +3523,10 @@ static void mystrftime_long (const struct context *cnt,
         sprintf(out, "%*s", width, VERSION);
         return;
     }
+    if (SPECIFIERWORD("name")) {
+        sprintf(out, "%*s", width, cnt->conf.camera_name);
+        return;
+    }
     if (SPECIFIERWORD("custom")) {
         snprintf(out, PATH_MAX, "%s", cnt->customtext);
         return;
