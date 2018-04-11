@@ -8,7 +8,7 @@
  *    See also the file 'COPYING'.
  *
  */
-
+#include "translate.h"
 #include "picture.h"
 #include "event.h"
 
@@ -224,11 +224,11 @@ static void put_subjectarea(struct tiff_writing *into, const struct coord *box)
     into->data_offset += 8;
 }
 
-/* 
+/*
  * prepare_exif() is a comon function used to prepare
  * exif data to be inserted into jpeg or webp files
  *
- */ 
+ */
 static unsigned prepare_exif(unsigned char **exif,
               const struct context *cnt,
               const struct timeval *tv1,
@@ -442,10 +442,11 @@ static void put_webp_exif(WebPMux* webp_mux,
         /* EXIF in WEBP does not need the EXIF marker signature (6 bytes) that are needed by jpeg */
         webp_exif.bytes = exif + 6;
         webp_exif.size = exif_len - 6;
-        
+
         WebPMuxError err = WebPMuxSetChunk(webp_mux, "EXIF", &webp_exif, 1);
         if (err != WEBP_MUX_OK) {
-            MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "Unable to set set EXIF to webp chunk");
+            MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO
+                , _("Unable to set set EXIF to webp chunk"));
         }
         free(exif);
     }
@@ -618,14 +619,14 @@ static void put_webp_yuv420p_file(FILE *fp,
     /* Create a config present and check for compatible library version */
     WebPConfig webp_config;
     if (!WebPConfigPreset(&webp_config, WEBP_PRESET_DEFAULT, (float) quality)){
-        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "libwebp version error");
+        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, _("libwebp version error"));
         return;
     }
 
     /* Create the input data structure and check for compatible library version */
     WebPPicture webp_image;
     if (!WebPPictureInit(&webp_image)){
-        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "libwebp version error");
+        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO,_("libwebp version error"));
         return;
     }
 
@@ -633,7 +634,7 @@ static void put_webp_yuv420p_file(FILE *fp,
     webp_image.width = width;
     webp_image.height = height;
     if (!WebPPictureAlloc(&webp_image)){
-        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "libwebp image buffer allocation error");
+        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO,_("libwebp image buffer allocation error"));
         return;
     }
 
@@ -650,27 +651,27 @@ static void put_webp_yuv420p_file(FILE *fp,
 
     /* Encode the YUV image as webp */
     if (!WebPEncode(&webp_config, &webp_image))
-        MOTION_LOG(WRN, TYPE_CORE, NO_ERRNO, "libwebp image compression error");
+        MOTION_LOG(WRN, TYPE_CORE, NO_ERRNO,_("libwebp image compression error"));
 
     /* A bitstream object is needed for the muxing proces */
     WebPData webp_bitstream;
     webp_bitstream.bytes = webp_writer.mem;
     webp_bitstream.size = webp_writer.size;
-    
+
     /* Create a mux from the prepared image data */
     WebPMux* webp_mux = WebPMuxCreate(&webp_bitstream, 1);
     put_webp_exif(webp_mux, cnt, tv1, box);
-    
+
     /* Add Exif data to the webp image data */
     WebPData webp_output;
     WebPMuxError err = WebPMuxAssemble(webp_mux, &webp_output);
     if (err != WEBP_MUX_OK) {
-        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "unable to assemble webp image");
+        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO,_("unable to assemble webp image"));
     }
-    
+
     /* Write the webp final bitstream to the file */
     if (fwrite(webp_output.bytes, sizeof(uint8_t), webp_output.size, fp) != webp_output.size)
-        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO, "unable to save webp image to file");
+        MOTION_LOG(ERR, TYPE_CORE, NO_ERRNO,_("unable to save webp image to file"));
 
 #if WEBP_ENCODER_ABI_VERSION > 0x0202
     /* writer.mem must be freed by calling WebPMemoryWriterClear */
@@ -1030,7 +1031,7 @@ void overlay_largest_label(struct context *cnt, unsigned char *out)
  *      Is used for the webcam feature. Depending on the image type
  *      (colour YUV420P or greyscale) the corresponding put_jpeg_X_memory function is called.
  * Inputs:
- * - cnt is the global context struct and only cnt->imgs.type is used.
+ * - cnt is the thread context struct
  * - image_size is the size of the input image buffer
  * - *image points to the image buffer that contains the YUV420P or Grayscale image about to be put
  * - quality is the jpeg quality setting from the config file.
@@ -1044,16 +1045,20 @@ void overlay_largest_label(struct context *cnt, unsigned char *out)
 int put_picture_memory(struct context *cnt, unsigned char* dest_image, int image_size, unsigned char *image,
         int quality, int width, int height)
 {
-    switch (cnt->imgs.type) {
-    case VIDEO_PALETTE_YUV420P:
+    /* The application currently has functionality to process grey images into JPGs that
+     * we want to keep for future enhancements.  To avoid a unused function compiler warning
+     * we put in this dummy check so it appears we use the functionality.  Once the enhancement
+     * is implemented, we can remove this condition and just process the jpg_yuv420.
+     */
+    int dummy = 1;
+
+    if (dummy == 1){
         return put_jpeg_yuv420p_memory(dest_image, image_size, image,
                                        width, height, quality, cnt
                                        , &(cnt->current_image->timestamp_tv)
                                        , &(cnt->current_image->location));
-    case VIDEO_PALETTE_GREY:
+    } else {
         return put_jpeg_grey_memory(dest_image, image_size, image, width, height, quality);
-    default:
-        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "Unknown image type %d", cnt->imgs.type);
     }
 
     return 0;
@@ -1062,6 +1067,9 @@ int put_picture_memory(struct context *cnt, unsigned char* dest_image, int image
 static void put_picture_fd(struct context *cnt, FILE *picture, unsigned char *image, int quality, int ftype){
     int width, height;
     int passthrough;
+    int dummy = 1;
+
+    /* See comment in put_picture_memory regarding dummy*/
 
     passthrough = util_check_passthrough(cnt);
     if ((ftype == FTYPE_IMAGE) && (cnt->imgs.size_high > 0) && (!passthrough)) {
@@ -1075,21 +1083,16 @@ static void put_picture_fd(struct context *cnt, FILE *picture, unsigned char *im
     if (cnt->imgs.picture_type == IMAGE_TYPE_PPM) {
         put_ppm_bgr24_file(picture, image, width, height);
     } else {
-        switch (cnt->imgs.type) {
-        case VIDEO_PALETTE_YUV420P:
+        if (dummy == 1){
             #ifdef HAVE_WEBP
             if (cnt->imgs.picture_type == IMAGE_TYPE_WEBP)
                 put_webp_yuv420p_file(picture, image, width, height, quality, cnt, &(cnt->current_image->timestamp_tv), &(cnt->current_image->location));
             #endif /* HAVE_WEBP */
             if (cnt->imgs.picture_type == IMAGE_TYPE_JPEG)
                 put_jpeg_yuv420p_file(picture, image, width, height, quality, cnt, &(cnt->current_image->timestamp_tv), &(cnt->current_image->location));
-            break;
-        case VIDEO_PALETTE_GREY:
+        } else {
             put_jpeg_grey_file(picture, image, width, height, quality);
-            break;
-        default:
-            MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "Unknown image type %d", cnt->imgs.type);
-        }
+       }
     }
 }
 
@@ -1102,15 +1105,16 @@ void put_picture(struct context *cnt, char *file, unsigned char *image, int ftyp
     if (!picture) {
         /* Report to syslog - suggest solution if the problem is access rights to target dir. */
         if (errno ==  EACCES) {
-            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO,
-                       "Can't write picture to file %s - check access rights to target directory\n"
-                       "Thread is going to finish due to this fatal error", file);
+            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+                ,_("Can't write picture to file %s - check access rights to target directory\n"
+                "Thread is going to finish due to this fatal error"), file);
             cnt->finish = 1;
             cnt->restart = 0;
             return;
         } else {
             /* If target dir is temporarily unavailable we may survive. */
-            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "Can't write picture to file %s", file);
+            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+                ,_("Can't write picture to file %s"), file);
             return;
         }
     }
@@ -1118,7 +1122,6 @@ void put_picture(struct context *cnt, char *file, unsigned char *image, int ftyp
     put_picture_fd(cnt, picture, image, cnt->conf.quality, ftype);
 
     myfclose(picture);
-    event(cnt, EVENT_FILECREATE, NULL, file, (void *)(unsigned long)ftype, NULL);
 }
 
 /**
@@ -1135,13 +1138,13 @@ unsigned char *get_pgm(FILE *picture, int width, int height)
     line[255] = 0;
 
     if (!fgets(line, 255, picture)) {
-        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "Could not read from pgm file");
+        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO,_("Could not read from pgm file"));
         return NULL;
     }
 
     if (strncmp(line, "P5", 2)) {
-        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "This is not a pgm file, starts with '%s'",
-                   line);
+        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+            ,_("This is not a pgm file, starts with '%s'"), line);
         return NULL;
     }
 
@@ -1153,7 +1156,8 @@ unsigned char *get_pgm(FILE *picture, int width, int height)
 
     /* Read image size */
     if (sscanf(line, "%d %d", &mask_width, &mask_height) != 2) {
-        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "Failed reading size in pgm file");
+        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+            ,_("Failed reading size in pgm file"));
         return NULL;
     }
 
@@ -1164,7 +1168,8 @@ unsigned char *get_pgm(FILE *picture, int width, int height)
             return NULL;
 
     if (sscanf(line, "%d", &maxval) != 1) {
-        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "Failed reading maximum value in pgm file");
+        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+            ,_("Failed reading maximum value in pgm file"));
         return NULL;
     }
 
@@ -1186,9 +1191,11 @@ unsigned char *get_pgm(FILE *picture, int width, int height)
 
     /* Resize mask if required */
     if (mask_width != width || mask_height != height) {
-        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "The mask file specified is not the same size as image from camera.");
-        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO, "Attempting to resize mask image from %dx%d to %dx%d",
-                   mask_width, mask_height, width, height);
+        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
+            ,_("The mask file specified is not the same size as image from camera."));
+        MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
+            ,_("Attempting to resize mask image from %dx%d to %dx%d")
+            ,mask_width, mask_height, width, height);
 
         resized_image = mymalloc((width * height * 3) / 2);
 
@@ -1223,12 +1230,13 @@ void put_fixed_mask(struct context *cnt, const char *file)
     if (!picture) {
         /* Report to syslog - suggest solution if the problem is access rights to target dir. */
         if (errno ==  EACCES) {
-            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO,
-                       "can't write mask file %s - check access rights to target directory",
-                       file);
+            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+                ,_("can't write mask file %s - check access rights to target directory")
+                ,file);
         } else {
             /* If target dir is temporarily unavailable we may survive. */
-            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "can't write mask file %s", file);
+            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+                ,_("can't write mask file %s"), file);
         }
         return;
     }
@@ -1241,91 +1249,16 @@ void put_fixed_mask(struct context *cnt, const char *file)
 
     /* Write pgm image data at once. */
     if ((int)fwrite(cnt->imgs.img_motion.image_norm, cnt->conf.width, cnt->conf.height, picture) != cnt->conf.height) {
-        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO, "Failed writing default mask as pgm file");
+        MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+            ,_("Failed writing default mask as pgm file"));
         return;
     }
 
     myfclose(picture);
 
-    MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO, "Creating empty mask %s\nPlease edit this file and "
-               "re-run motion to enable mask feature", cnt->conf.mask_file);
-}
-
-/**
- * preview_save
- *      save preview_shot
- *
- * Returns nothing.
- */
-void preview_save(struct context *cnt)
-{
-    int use_imagepath;
-    int basename_len;
-    const char *imagepath;
-    char previewname[PATH_MAX];
-    char filename[PATH_MAX];
-    struct image_data *saved_current_image;
-    int passthrough;
-
-    if (cnt->imgs.preview_image.diffs) {
-        /* Save current global context. */
-        saved_current_image = cnt->current_image;
-        /* Set global context to the image we are processing. */
-        cnt->current_image = &cnt->imgs.preview_image;
-
-        /* Use filename of movie i.o. jpeg_filename when set to 'preview'. */
-        use_imagepath = strcmp(cnt->conf.imagepath, "preview");
-
-        if ((cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe)) && !use_imagepath) {
-            if (cnt->conf.useextpipe && cnt->extpipe) {
-                basename_len = strlen(cnt->extpipefilename) + 1;
-                strncpy(previewname, cnt->extpipefilename, basename_len);
-                previewname[basename_len - 1] = '.';
-            } else {
-                /* Replace avi/mpg with jpg/ppm and keep the rest of the filename. */
-                basename_len = strlen(cnt->newfilename) - 3;
-                strncpy(previewname, cnt->newfilename, basename_len);
-            }
-
-            previewname[basename_len] = '\0';
-            strcat(previewname, imageext(cnt));
-
-            passthrough = util_check_passthrough(cnt);
-            if ((cnt->imgs.size_high > 0) && (!passthrough)) {
-                put_picture(cnt, previewname, cnt->imgs.preview_image.image_high , FTYPE_IMAGE);
-            } else {
-                put_picture(cnt, previewname, cnt->imgs.preview_image.image_norm , FTYPE_IMAGE);
-            }
-
-        } else {
-            /*
-             * Save best preview-shot also when no movies are recorded or imagepath
-             * is used. Filename has to be generated - nothing available to reuse!
-             */
-            MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "different filename or picture only!");
-            /*
-             * conf.imagepath would normally be defined but if someone deleted it by
-             * control interface it is better to revert to the default than fail.
-             */
-            if (cnt->conf.imagepath)
-                imagepath = cnt->conf.imagepath;
-            else
-                imagepath = (char *)DEF_IMAGEPATH;
-
-            mystrftime(cnt, filename, sizeof(filename), imagepath, &cnt->imgs.preview_image.timestamp_tv, NULL, 0);
-            snprintf(previewname, PATH_MAX, "%s/%s.%s", cnt->conf.filepath, filename, imageext(cnt));
-
-            passthrough = util_check_passthrough(cnt);
-            if ((cnt->imgs.size_high > 0) && (!passthrough)) {
-                put_picture(cnt, previewname, cnt->imgs.preview_image.image_high , FTYPE_IMAGE);
-            } else {
-                put_picture(cnt, previewname, cnt->imgs.preview_image.image_norm, FTYPE_IMAGE);
-            }
-        }
-
-        /* Restore global context values. */
-        cnt->current_image = saved_current_image;
-    }
+    MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+        ,_("Creating empty mask %s\nPlease edit this file and "
+        "re-run motion to enable mask feature"), cnt->conf.mask_file);
 }
 
 /**

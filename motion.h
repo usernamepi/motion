@@ -53,14 +53,12 @@ struct image_data;
 #include <pthread.h>
 
 #ifdef __FreeBSD__
-//It is unknown whether it is safe to put this into the if/else below on Apple and BSD
 #include <pthread_np.h>
 #endif
 
 #include "logger.h"
 #include "conf.h"
 #include "stream.h"
-#include "webhttpd.h"
 
 #include "track.h"
 #include "netcam.h"
@@ -70,18 +68,6 @@ struct image_data;
 #ifdef HAVE_MMAL
 #include "mmalcam.h"
 #endif
-
-
-#ifdef __APPLE__
-#define MOTION_PTHREAD_SETNAME(name)  pthread_setname_np(name)
-#elif defined(BSD)
-#define MOTION_PTHREAD_SETNAME(name)  pthread_set_name_np(pthread_self(), name)
-#elif HAVE_PTHREAD_SETNAME_NP
-#define MOTION_PTHREAD_SETNAME(name)  pthread_setname_np(pthread_self(), name)
-#else
-#define MOTION_PTHREAD_SETNAME(name)
-#endif
-
 
 
 /**
@@ -110,27 +96,6 @@ struct image_data;
                 tv.tv_nsec = (nanoseconds);        \
                 while (nanosleep(&tv, &tv) == -1); \
         }
-
-#define CLEAR(x) memset(&(x), 0, sizeof(x))
-
-#define VIDEO_PALETTE_GREY      1       /* Linear greyscale */
-#define VIDEO_PALETTE_HI240     2       /* High 240 cube (BT848) */
-#define VIDEO_PALETTE_RGB565    3       /* 565 16 bit RGB */
-#define VIDEO_PALETTE_RGB24     4       /* 24bit RGB */
-#define VIDEO_PALETTE_RGB32     5       /* 32bit RGB */
-#define VIDEO_PALETTE_RGB555    6       /* 555 15bit RGB */
-#define VIDEO_PALETTE_YUV422    7       /* YUV422 capture */
-#define VIDEO_PALETTE_YUYV      8
-#define VIDEO_PALETTE_UYVY      9       /* The great thing about standards is ... */
-#define VIDEO_PALETTE_YUV420    10
-#define VIDEO_PALETTE_YUV411    11      /* YUV411 capture */
-#define VIDEO_PALETTE_RAW       12      /* RAW capture (BT848) */
-#define VIDEO_PALETTE_YUV422P   13      /* YUV 4:2:2 Planar */
-#define VIDEO_PALETTE_YUV411P   14      /* YUV 4:1:1 Planar */
-#define VIDEO_PALETTE_YUV420P   15      /* YUV 4:2:0 Planar */
-#define VIDEO_PALETTE_YUV410P   16      /* YUV 4:1:0 Planar */
-#define VIDEO_PALETTE_PLANAR    13      /* start of planar entries */
-#define VIDEO_PALETTE_COMPONENT 7       /* start of component entries */
 
 #define DEF_PALETTE             17
 
@@ -253,6 +218,22 @@ enum WEBUI_LEVEL{
   WEBUI_LEVEL_NEVER      = 99
 };
 
+struct vdev_usrctrl_ctx {
+    char          *ctrl_name;       /* The name or description of the ID as requested by user*/
+    int            ctrl_value;      /* The value that the user wants the control set to*/
+};
+
+struct vdev_context {
+    /* As v4l2 and bktr get rewritten, put thread specific items here
+     * Rather than use conf options directly, copy from conf to here
+     * to handle cross thread webui changes which could cause problems
+     */
+    struct vdev_usrctrl_ctx *usrctrl_array;     /*Array of the controls the user specified*/
+    int usrctrl_count;                          /*Count of the controls the user specified*/
+    int update_parms;                           /*Bool for whether to update the parameters on the device*/
+};
+
+
 struct image_data {
     unsigned char *image_norm;
     unsigned char *image_high;
@@ -303,7 +284,10 @@ struct image_data {
  */
 
 /* date/time drawing, draw.c */
-int draw_text(unsigned char *image, unsigned int startx, unsigned int starty, unsigned int width, const char *text, unsigned int factor);
+int draw_text(unsigned char *image,
+              int width, int height,
+              int startx, int starty,
+              const char *text, int factor);
 int initialize_chars(void);
 
 struct images {
@@ -399,6 +383,8 @@ struct context {
     struct rtsp_context *rtsp;              /* this structure contains the context for normal RTSP connection */
     struct rtsp_context *rtsp_high;         /* this structure contains the context for high resolution RTSP connection */
 
+    struct vdev_context *vdev;              /* Structure for v4l2 and bktr device information */
+
     struct image_data *current_image;       /* Pointer to a structure where the image, diffs etc is stored */
     unsigned int new_img;
 
@@ -411,6 +397,7 @@ struct context {
     int threshold;
     int diffs_last[THRESHOLD_TUNE_LENGTH];
     int smartmask_speed;
+
 
     /* Commands to the motion thread */
     volatile unsigned int snapshot;    /* Make a snapshot */
@@ -430,10 +417,10 @@ struct context {
     int prev_event;
     unsigned long long database_event_id;
     unsigned int lightswitch_framecounter;
-    char text_event_string[PATH_MAX];        /* The text for conv. spec. %C -
-                                                we assume PATH_MAX normally 4096 characters is fine */
-    int postcap;                             /* downcounter, frames left to to send post event */
+    char text_event_string[PATH_MAX];        /* The text for conv. spec. %C - */
+    int text_scale;
 
+    int postcap;                             /* downcounter, frames left to to send post event */
     int shots;
     unsigned int detecting_motion;
     struct tm *currenttime_tm;
@@ -503,7 +490,6 @@ struct context {
     int minimum_frame_time_downcounter;
     unsigned int get_image;    /* Flag used to signal that we capture new image when we run the loop */
 
-    unsigned int text_size_factor;
     long int required_frame_time, frame_delay;
 
     long int rolling_average_limit;

@@ -51,13 +51,10 @@ struct config {
     int noise;
     int noise_tune;
     int minimum_frame_time;
-    int lightswitch;
+    int lightswitch_percent;
+    int lightswitch_frames;
     int autobright;
-    int brightness;
-    int contrast;
-    int saturation;
-    int hue;
-    int power_line_frequency;
+    char *vid_control_params;
     int roundrobin_frames;
     int roundrobin_skip;
     int pre_capture;
@@ -78,13 +75,14 @@ struct config {
     int stream_localhost;
     int stream_limit;
     int stream_auth_method;
+    const char *stream_cors_header;
     const char *stream_authentication;
     int stream_preview_scale;
     int stream_preview_newline;
     int webcontrol_port;
     int webcontrol_localhost;
-    int webcontrol_html_output;
     int webcontrol_parms;
+    int webcontrol_interface;
     const char *webcontrol_authentication;
     unsigned long frequency;
     int tuner_number;
@@ -111,6 +109,7 @@ struct config {
     int sql_log_movie;
     int sql_log_timelapse;
     const char *sql_query_start;
+    const char *sql_query_stop;
     const char *sql_query;
     const char *database_type;
     const char *database_dbname;
@@ -134,15 +133,13 @@ struct config {
     const char *netcam_proxy;
     unsigned int netcam_tolerant_check;
     unsigned int rtsp_uses_tcp;
-#ifdef HAVE_MMAL
     const char *mmalcam_name;
     const char *mmalcam_control_params;
-#endif
     int text_changes;
     const char *text_left;
     const char *text_right;
     const char *text_event;
-    int text_double;
+    int text_scale;
     const char *despeckle_filter;
     const char *area_detect;
     const char *camera_dir;
@@ -188,13 +185,14 @@ typedef struct {
 extern dep_config_param dep_config_params[];
 
 struct context **conf_load(struct context **);
+struct context **copy_string(struct context **, const char *, int);
+struct context **copy_uri(struct context **, const char *, int);
 struct context **conf_cmdparse(struct context **, const char *, const char *);
+struct context **read_camera_dir(struct context **, const char *, int);
+void conf_output_parms(struct context **cnt);
 const char *config_type(config_param *);
 void conf_print(struct context **);
-void conf_output_parms(struct context **cnt);
-void malloc_strings(struct context *);
 char *mystrdup(const char *);
 char *mystrcpy(char *, const char *);
-struct context **copy_string(struct context **, const char *, int);
 
 #endif /* _INCLUDE_CONF_H */

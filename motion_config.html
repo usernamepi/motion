@@ -202,9 +202,7 @@
     <ul>
       <p></p>
         SYNOPSIS
-      <pre>
-        motion [ -hbnsm ] [ -c config file path ] [ -d level ] [ -k level ] [ -p process_id_file ] [ -l log_file ]
-      </pre>
+      <pre>motion [ -hbnsm ] [ -c config file path ] [ -d level ] [ -k level ] [ -p process_id_file ] [ -l log_file ]</pre>
       <p></p>
       <ul>
         <li>-c : Full path and filename of config file.</li>
@@ -410,12 +408,6 @@
           <td align="left"><a href="#auto_brightness" >auto_brightness</a></td>
         </tr>
         <tr>
-          <td height="17" align="left">brightness</td>
-          <td align="left">brightness</td>
-          <td align="left">brightness</td>
-          <td align="left"><a href="#brightness" >brightness</a></td>
-        </tr>
-        <tr>
           <td height="17" align="left">thread</td>
           <td align="left">camera</td>
           <td align="left">camera</td>
@@ -438,12 +430,6 @@
           <td align="left">camera_name</td>
           <td align="left">camera_name</td>
           <td align="left"><a href="#camera_name" >camera_name</a></td>
-        </tr>
-        <tr>
-          <td height="17" align="left">contrast</td>
-          <td align="left">contrast</td>
-          <td align="left">contrast</td>
-          <td align="left"><a href="#contrast" >contrast</a></td>
         </tr>
         <tr>
           <td height="17" align="left">daemon</td>
@@ -614,12 +600,6 @@
           <td align="left"><a href="#height" >height</a></td>
         </tr>
         <tr>
-          <td height="17" align="left">hue</td>
-          <td align="left">hue</td>
-          <td align="left">hue</td>
-          <td align="left"><a href="#hue" >hue</a></td>
-        </tr>
-        <tr>
           <td height="17" align="left">input</td>
           <td align="left">input</td>
           <td align="left">input</td>
@@ -635,7 +615,13 @@
           <td height="17" align="left">lightswitch</td>
           <td align="left">lightswitch</td>
           <td align="left">lightswitch</td>
-          <td align="left"><a href="#lightswitch" >lightswitch</a></td>
+          <td align="left"><a href="#lightswitch_percent" >lightswitch_percent</a></td>
+        </tr>
+        <tr>
+            <td height="17" align="left"></td>
+            <td align="left"></td>
+            <td align="left"></td>
+            <td align="left"><a href="#lightswitch_frames" >lightswitch_frames</a></td>
         </tr>
         <tr>
           <td height="17" align="left">locate</td>
@@ -860,12 +846,6 @@
           <td align="left"><a href="#post_capture" >post_capture</a></td>
         </tr>
         <tr>
-          <td height="17" align="left"><br /></td>
-          <td align="left">power_line_frequency</td>
-          <td align="left">power_line_frequency</td>
-          <td align="left"><a href="#power_line_frequency" >power_line_frequency</a></td>
-        </tr>
-        <tr>
           <td height="17" align="left">pre_capture</td>
           <td align="left">pre_capture</td>
           <td align="left">pre_capture</td>
@@ -912,12 +892,6 @@
           <td align="left">rtsp_uses_tcp</td>
           <td align="left">rtsp_uses_tcp</td>
           <td align="left"><a href="#rtsp_uses_tcp" >rtsp_uses_tcp</a></td>
-        </tr>
-        <tr>
-          <td height="17" align="left">saturation</td>
-          <td align="left">saturation</td>
-          <td align="left">saturation</td>
-          <td align="left"><a href="#saturation" >saturation</a></td>
         </tr>
         <tr>
           <td height="17" align="left">setup_mode</td>
@@ -980,10 +954,22 @@
           <td align="left"><a href="#sql_query_start" >sql_query_start</a></td>
         </tr>
         <tr>
+          <td height="17" align="left"></td>
+          <td align="left"></td>
+          <td align="left"></td>
+          <td align="left"><a href="#sql_query_stop" >sql_query_stop</a></td>
+        </tr>
+        <tr>
           <td height="17" align="left"><br /></td>
           <td align="left">stream_auth_method</td>
           <td align="left">stream_auth_method</td>
           <td align="left"><a href="#stream_auth_method" >stream_auth_method</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left"><br /></td>
+          <td align="left"></td>
+          <td align="left"></td>
+          <td align="left"><a href="#stream_cors_header" >stream_cors_header</a></td>
         </tr>
         <tr>
           <td height="17" align="left"><br /></td>
@@ -1067,7 +1053,7 @@
           <td height="17" align="left">text_double</td>
           <td align="left">text_double</td>
           <td align="left">text_double</td>
-          <td align="left"><a href="#text_double" >text_double</a></td>
+          <td align="left"><a href="#text_scale" >text_scale</a></td>
         </tr>
         <tr>
           <td height="17" align="left">text_event</td>
@@ -1208,6 +1194,12 @@
           <td align="left"><a href="#track_type" >track_type</a></td>
         </tr>
         <tr>
+          <td height="17" align="left"></td>
+          <td align="left"></td>
+          <td align="left"></td>
+          <td align="left"><a href="#track_generic_move" >track_generic_move</a></td>
+        </tr>
+        <tr>
           <td height="17" align="left">tunerdevice</td>
           <td align="left">tunerdevice</td>
           <td align="left">tunerdevice</td>
@@ -1224,6 +1216,36 @@
           <td align="left">v4l2_palette</td>
           <td align="left">v4l2_palette</td>
           <td align="left"><a href="#v4l2_palette" >v4l2_palette</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left">brightness</td>
+          <td align="left">brightness</td>
+          <td align="left">brightness</td>
+          <td align="left"><a href="#vid_control_params" >vid_control_params</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left">contrast</td>
+          <td align="left">contrast</td>
+          <td align="left">contrast</td>
+          <td align="left"><a href="#vid_control_params" >vid_control_params</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left">hue</td>
+          <td align="left">hue</td>
+          <td align="left">hue</td>
+          <td align="left"><a href="#vid_control_params" >vid_control_params</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left"><br /></td>
+          <td align="left">power_line_frequency</td>
+          <td align="left">power_line_frequency</td>
+          <td align="left"><a href="#vid_control_params" >vid_control_params</a></td>
+        </tr>
+        <tr>
+          <td height="17" align="left">saturation</td>
+          <td align="left">saturation</td>
+          <td align="left">saturation</td>
+          <td align="left"><a href="#vid_control_params" >vid_control_params</a></td>
         </tr>
         <tr>
           <td height="17" align="left">video_pipe</td>
@@ -1247,7 +1269,7 @@
           <td height="17" align="left">control_html_output</td>
           <td align="left">webcontrol_html_output</td>
           <td align="left">webcontrol_html_output</td>
-          <td align="left"><a href="#webcontrol_html_output" >webcontrol_html_output</a></td>
+          <td align="left"><a href="#webcontrol_interface" >webcontrol_interface</a></td>
         </tr>
         <tr>
           <td height="17" align="left">control_localhost</td>
@@ -1347,21 +1369,15 @@
           <tbody>
             <tr>
               <td bgcolor="#edf4f9" ><a href="#videodevice" >videodevice</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#vid_control_params" >vid_control_params</a> </td>
               <td bgcolor="#edf4f9" ><a href="#v4l2_palette" >v4l2_palette</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#tunerdevice" >tunerdevice</a> </td>
               <td bgcolor="#edf4f9" ><a href="#input" >input</a> </td>
             </tr>
             <tr>
               <td bgcolor="#edf4f9" ><a href="#norm" >norm</a> </td>
               <td bgcolor="#edf4f9" ><a href="#frequency" >frequency</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#power_line_frequency" >power_line_frequency</a> </td>
               <td bgcolor="#edf4f9" ><a href="#auto_brightness" >auto_brightness</a> </td>
-            </tr>
-            <tr>
-              <td bgcolor="#edf4f9" ><a href="#brightness" >brightness</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#contrast" >contrast</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#saturation" >saturation</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#hue" >hue</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#tunerdevice" >tunerdevice</a> </td>
             </tr>
             <tr>
               <td bgcolor="#edf4f9" ><a href="#roundrobin_frames" >roundrobin_frames</a> </td>
@@ -1458,7 +1474,7 @@
               <td bgcolor="#edf4f9" ><a href="#text_event" >text_event</a> </td>
             </tr>
             <tr>
-              <td bgcolor="#edf4f9" ><a href="#text_double" >text_double</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#text_scale" >text_scale</a> </td>
               <td bgcolor="#edf4f9" ><a href="#flip_axis" >flip_axis</a> </td>
             </tr>
           </tbody>
@@ -1493,7 +1509,8 @@
             </tr>
             <tr>
               <td bgcolor="#edf4f9" ><a href="#smart_mask_speed" >smart_mask_speed</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#lightswitch" >lightswitch</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#lightswitch_percent" >lightswitch_percent</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#lightswitch_frames" >lightswitch_frames</a> </td>
               <td bgcolor="#edf4f9" ><a href="#minimum_motion_frames" >minimum_motion_frames</a> </td>
               <td bgcolor="#edf4f9" ><a href="#event_gap" >event_gap</a> </td>
             </tr>
@@ -1689,11 +1706,12 @@
             <tr>
               <td bgcolor="#edf4f9" ><a href="#webcontrol_port" >webcontrol_port</a> </td>
               <td bgcolor="#edf4f9" ><a href="#webcontrol_localhost" >webcontrol_localhost</a> </td>
-              <td bgcolor="#edf4f9" ><a href="#webcontrol_html_output" >webcontrol_html_output</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#webcontrol_interface" >webcontrol_interface</a> </td>
               <td bgcolor="#edf4f9" ><a href="#webcontrol_authentication" >webcontrol_authentication</a> </td>
             </tr>
             <tr>
               <td bgcolor="#edf4f9" ><a href="#webcontrol_parms" >webcontrol_parms</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#stream_cors_header" >stream_cors_header</a> </td>
             </tr>
            </tbody>
         </table>
@@ -1723,6 +1741,7 @@
             <tr>
               <td bgcolor="#edf4f9" ><a href="#sql_query" >sql_query</a> </td>
               <td bgcolor="#edf4f9" ><a href="#sql_query_start" >sql_query_start</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#sql_query_stop" >sql_query_stop</a> </td>
               <td bgcolor="#edf4f9" ><a href="#database_type" >database_type</a> </td>
               <td bgcolor="#edf4f9" ><a href="#database_dbname" >database_dbname</a> </td>
             </tr>
@@ -1782,6 +1801,7 @@
               <td bgcolor="#edf4f9" ><a href="#track_move_wait" >track_move_wait</a> </td>
               <td bgcolor="#edf4f9" ><a href="#track_speed" >track_speed</a> </td>
               <td bgcolor="#edf4f9" ><a href="#track_stepsize" >track_stepsize</a> </td>
+              <td bgcolor="#edf4f9" ><a href="#track_generic_move" >track_generic_move</a> </td>
             </tr>
           </tbody>
         </table>
@@ -1839,7 +1859,7 @@
               <td bgcolor="#edf4f9" >frame number</a> </td>
             </tr>
             <tr>
-              <td bgcolor="#edf4f9" >%t    </a> </td>
+              <td bgcolor="#edf4f9" >%t</a> </td>
               <td bgcolor="#edf4f9" >camera id number</a> </td>
               <td bgcolor="#edf4f9" >%D </a> </td>
               <td bgcolor="#edf4f9" >changed pixels</a> </td>
@@ -1847,36 +1867,44 @@
               <td bgcolor="#edf4f9" >noise level</a> </td>
              </tr>
              <tr>
+               <td bgcolor="#edf4f9" >%w </a> </td>
+               <td bgcolor="#edf4f9" >width of the image</a> </td>
+               <td bgcolor="#edf4f9" >%h </a> </td>
+               <td bgcolor="#edf4f9" >height of the image</a> </td>
                <td bgcolor="#edf4f9" >%i </a> </td>
-               <td bgcolor="#edf4f9" >width of motion area,</a> </td>
-               <td bgcolor="#edf4f9" >%J  </a> </td>
-               <td bgcolor="#edf4f9" >height of motion area</a> </td>
-               <td bgcolor="#edf4f9" >%J  </a> </td>
-               <td bgcolor="#edf4f9" >height of motion area</a> </td>
+               <td bgcolor="#edf4f9" >width of motion area</a> </td>
              </tr>
              <tr>
+               <td bgcolor="#edf4f9" >%J  </a> </td>
+               <td bgcolor="#edf4f9" >height of motion area</a> </td>
                <td bgcolor="#edf4f9" >%K   </a> </td>
                <td bgcolor="#edf4f9" >X coordinates of motion center</a> </td>
                <td bgcolor="#edf4f9" >%L  </a> </td>
                <td bgcolor="#edf4f9" >Y coordinates of motion center</a> </td>
-               <td bgcolor="#edf4f9" >%C   </a> </td>
-               <td bgcolor="#edf4f9" >value defined by text_event</a> </td>
              </tr>
              <tr>
+               <td bgcolor="#edf4f9" >%C   </a> </td>
+               <td bgcolor="#edf4f9" >value defined by text_event</a> </td>
                <td bgcolor="#edf4f9" >%f</a> </td>
                <td bgcolor="#edf4f9" >filename with full path</a> </td>
                <td bgcolor="#edf4f9" >%n   </a> </td>
                <td bgcolor="#edf4f9" >number indicating filetype</a> </td>
-               <td bgcolor="#edf4f9" >%$</a> </td>
-               <td bgcolor="#edf4f9" >camera name</a> </td>
              </tr>
              <tr>
-               <td bgcolor="#edf4f9" >%{host}</a> </td>
-               <td bgcolor="#edf4f9" >name of computer running Motion</a> </td>
-               <td bgcolor="#edf4f9" >%{fps}</a> </td>
-               <td bgcolor="#edf4f9" >current frames per second</a> </td>
+               <td bgcolor="#edf4f9" >%o</a> </td>
+               <td bgcolor="#edf4f9" >threshold</a> </td>
+	             <td bgcolor="#edf4f9" >%Q</a> </td>
+               <td bgcolor="#edf4f9" >Number of labels from despeckle</a> </td>
                <td bgcolor="#edf4f9" >%{dbeventid}</a> </td>
                <td bgcolor="#edf4f9" >See <a href="#sql_query_start">sql_query_start</a> </a> </td>
+             </tr>
+             <tr>
+               <td bgcolor="#edf4f9" >%$</a> </td>
+               <td bgcolor="#edf4f9" >camera name</a> </td>
+               <td bgcolor="#edf4f9" >%{fps}</a> </td>
+               <td bgcolor="#edf4f9" >current frames per second</a> </td>
+               <td bgcolor="#edf4f9" >%{host}</a> </td>
+               <td bgcolor="#edf4f9" >name of computer running Motion</a> </td>
              </tr>
              <tr>
                <td bgcolor="#edf4f9" >%{ver}</a> </td>
@@ -1885,8 +1913,8 @@
             </tbody>
         </table>
         <p></p>
-        The use of quotation marks around string is permitted.  The conversion specifiers used have
-        the same options as for the C function strftime (3) plus the few that are unique to Motion.
+        The use of quotation marks around string is permitted.  In addition to the above, the conversion
+        specifiers include the same options as for the C function strftime (3).
         <p></p>
       </ul>
 
@@ -2092,6 +2120,119 @@
         device but has fewer options available. If the <a href="#netcam_url" >netcam_url</a> is used for
         either this alternative method or for a normal network camera, the videodevice option is ignored.
         <p></p>
+
+        <h3><a name="vid_control_params"></a>vid_control_params</h3>
+        <p></p>
+        <ul>
+         <li> Type: String</li>
+          <li> Range / Valid values: Max 4095 characters</li>
+          <li> Default:  </li>
+         </ul>
+        <p></p>
+        For v4l2 and bktr devices, most of the configuration options are automatic.  However most devices also allow
+        the user to change certain settings to suit their needs.  The options which the camera manufacturer permits
+        the user to change are called "controls".
+        <p></p>
+        The <a href="#vid_control_params" >vid_control_params</a> option allows users of Motion to change any of these
+        controls.  The specific controls that can be changed is however entirely dependent upon the device.
+        <p></p>
+        This option replaces the previous configuration options for:
+        <ul>
+          <li> brightness</li>
+          <li> contrast</li>
+          <li> hue</li>
+          <li> power_line_frequency</li>
+          <li> saturation</li>
+        </ul>
+        <p></p>
+        This option permits the V4l2 users of Motion to change the value of any control that is available
+        to the device rather than being limited to only the 5 listed above.  For FreeBSD users with BKTR devices,
+        the options are limited to brightness, contrast, hue and saturation due to the limitations of the driver.
+        <p></p>
+        While it always recommended that users remove older configuration options and only use the new options,
+        if users have within the configuration file any of the depreciated options list above, Motion will
+        continue to read those values and upgrade them into the new vid_control_params option.  The resulting
+        pictures from the device may however may not be comparable due to different interpretations of the values.
+        <p></p>
+        It is therefore highly recommended that users remove the old configuration values and calibrate their devices
+        only using this new configuration option.
+        <p></p>
+        To use this parameter, users will need to first identify the name or ID description of the particular control.
+        Next, simply specify the control/id followed by an equal sign and then the desired value.  The specification
+        of multiple controls can be specified by separating them with a comma.
+        <p></p>
+        Since the name of some controls can include a comma or spaces, names can also be specified by enclosing them
+        in double quotes.
+        <p></p>
+        Finally, to help users know which controls are available for their device, the Motion log will report all the
+        available controls, associated IDs and minimum/maximum values permitted at the
+        <a href="#log_level" >log_level</a> of INF.
+        <p></p>
+        e.g.  Change the <a href="#log_level" >log_level</a>
+        to INF, start up Motion with the device attached and specified, let it report items to the log and then
+        shut Motion down.  Within the Motion log, it will list which controls the device has that can be adjusted.
+        <p></p>
+        The following is a sample output from the log and examples of how to specify the parameters
+        <p></p>
+        <ul style="list-style: none;">
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ---------Controls---------</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   V4L2 ID   Name and Range</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963776 Brightness, 0 to 127</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963777 Contrast, 0 to 63</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963778 Saturation, -100 to 100</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963788 White Balance, Automatic, 0 to 4</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 0 Indoor (Incandescant Lighting)</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 1 Outdoor (Sunlight) Mode</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 2 Indoor (Fluorescent Lighting) M</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 3 Manual Mode</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 4 Auto Mode</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963790 Red Balance, 0 to 255</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963791 Blue Balance, 0 to 255</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963792 Gamma, 0 to 31</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963793 Exposure, 0 to 255</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963794 Gain, Automatic, 0 to 1</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963795 Gain, 0 to 63</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963804 Backlight Compensation, 0 to 1</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963807 Color Effects, 0 to 1</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 0 None</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list:   menu item: Value 1 Black & White</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID09963809 Band-Stop Filter, 0 to 1</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025216 Auto contour, 0 to 1</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025217 Contour, 0 to 63</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025218 Dynamic Noise Reduction, 0 to 3</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025219 Auto White Balance Speed, 1 to 32</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025220 Auto White Balance Delay, 0 to 63</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025221 Save User Settings, 0 to 0</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025222 Restore User Settings, 0 to 0</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: ID10025223 Restore Factory Settings, 0 to 0</li>
+        <li>[1:ml1:c1] [INF] [VID] v4l2_ctrls_list: --------------------------</li>
+        </ul>
+
+
+        <p></p>
+        Example 1:  Set the gain to manual, then the gain to 50 and the brightness to 30
+        <p></p>
+        <code>vid_control_params "Gain, Automatic"=1,ID09963795=50, brightness=30</code>
+        <p></p>
+        a equally valid alternative method for specifying this example would be
+        <p></p>
+        <code>vid_control_params ID09963794=1,ID09963795=50, ID09963776=30</code>
+        <p></p>
+        or another way of specifying it could be
+        <p></p>
+        <code>vid_control_params ID09963794=1,"Gain"=50, "brightness"=30</code>
+        <p></p>
+        Example 2:  Set the saturation to 50 and the contrast to 100
+        <p></p>
+        <code>vid_control_params saturation=50,contrast=100</code>
+        <p></p>
+        As can be seen in these examples, the specification can use either the control ID or the name of the
+        control.  If the control name has embedded blanks or commas, then it must be enclosed in quotes.  Special
+        care should be taken when using the name.  As shown above, there is a comma that separates the name
+        of the control versus the valid range of values.  That comma is NOT part of the control name and only
+        delimits the end of the name for the Motion log.
+        <p></p>
+
 
         <h3><a name="v4l2_palette"></a> v4l2_palette </h3>
         <p></p>
@@ -2309,90 +2450,33 @@
         Your tuner card must support this feature.
         <p></p>
 
-        <h3><a name="power_line_frequency"></a> power_line_frequency </h3>
-        <p></p>
-        <ul>
-          <li> Type: Integer</li>
-          <li> Range / Valid values: -1 to 3 </li>
-          <li> Default: -1 </li>
-        </ul>
-        <p></p>
-        This option allows the user to specify the power line frequency that is applicable to the user.  This option
-        can help stabilize the images of some webcams that are sensitive to this frequency.  This is not normally necessary.
-        <ul>
-          <li> -1 : Do not modify device setting</li>
-          <li> 0  : Power line frequency Disabled</li>
-          <li> 1  : 50hz</li>
-          <li> 2  : 60hz</li>
-          <li> 3  : Auto</li>
-        </ul>
-        <p></p>
-
         <h3><a name="auto_brightness"></a> auto_brightness </h3>
         <p></p>
         <ul>
           <li> Type: Boolean</li>
-          <li> Range / Valid values: on, off</li>
+          <li> Range / Valid values: integer, on, off</li>
           <li> Default: off </li>
         </ul>
         <p></p>
         Let motion regulate the brightness of a video device. Only recommended for cameras without auto brightness
         Motion will try to adjust the brightness of the video device if the images captured are too dark or too light.
         This option will be most useful for video devices which sometimes don't have such an option in
-        hardware.  The auto_brightness feature will adjust the brightness of the device up or down until the value defined
-        by the option brightness is reached (1 = dark, 255 = bright). If brightness is zero auto_brightness will try to
-        adjust to the average brightness level 128.  You need to know if the camera supports auto brightness. Most cameras
-        have auto everything. If your video device already does this for you this option might cause oscillations. If you
-        do not know assume that it has and do not use the Motion auto brightness feature. At least not to start with.
+        hardware.  The auto_brightness feature will adjust the brightness of the device up or down until the value
+        is close to a target value.
         <p></p>
-
-        <h3><a name="brightness"></a> brightness </h3>
+        By default, the target value is the midpoint between the minimum and maximum value permitted for the control
+        being adjusted.  (See methods available below)
         <p></p>
+        Users can specify a different target value by specifying a value for the control in
+        the <a href="#vid_control_params">vid_control_params</a> option.
+        <p></p>
+        Motion allows for three possible methods for adjusting the brightness.
         <ul>
-          <li> Type: Integer</li>
-          <li> Range / Valid values: 0 - 255</li>
-          <li> Default: 0 (disabled) </li>
+        <li> 1: Use the brightness control to regulate the brightness (equivalent to specifying on/yes)</li>
+        <li> 2: Use the exposure control to regulate the brightness</li>
+        <li> 3: Use the exposure absolute control to regulate the brightness</li>
         </ul>
         <p></p>
-        The brightness level for the video device.  Value 0 means that Motion does not set the brightness value but
-        leaves it unchanged.  If this setting is used in conjunction with the auto_brightness feature then this setting
-        is the average brightness level in the range 1 (dark) to 255 (bright) that the auto_brightness feature will try
-        to achieve by adjusting the device brightness up and down.
-        <p></p>
-
-        <h3><a name="contrast"></a> contrast </h3>
-        <p></p>
-        <ul>
-          <li> Type: Integer</li>
-          <li> Range / Valid values: 0 - 255</li>
-          <li> Default: 0 (disabled) </li>
-        </ul>
-        <p></p>
-        The contrast level for the video device.  Disabled (Value 0) means that Motion does not set the contrast value.
-        <p></p>
-
-        <h3><a name="saturation"></a> saturation </h3>
-        <p></p>
-        <ul>
-          <li> Type: Integer</li>
-          <li> Range / Valid values: 0 - 255</li>
-          <li> Default: 0 (disabled) </li>
-        </ul>
-        <p></p>
-        The color saturation level for the video device.
-        <p></p>
-
-        <h3><a name="hue"></a> hue </h3>
-        <p></p>
-        <ul>
-          <li> Type: Integer</li>
-          <li> Range / Valid values: 0 - 255</li>
-          <li> Default: 0 (disabled) </li>
-        </ul>
-        <p></p>
-        The hue level for the video device.
-        <p></p>
-
 
         <h3><a name="roundrobin_frames"></a> roundrobin_frames </h3>
         <p></p>
@@ -3100,17 +3184,24 @@
 
         <p></p>
 
-        <h3><a name="text_double"></a> text_double </h3>
+        <h3><a name="text_scale"></a> text_scale </h3>
         <p></p>
         <ul>
-          <li> Type: Boolean</li>
-          <li> Range / Valid values: on, off</li>
-          <li> Default: off</li>
+          <li> Type: Integer</li>
+          <li> Range / Valid values: 1 - 2147483647</li>
+          <li> Default: 1</li>
         </ul>
         <p></p>
-        Draw characters at twice normal size on images.
-        This option makes the text defined by text_left, text_right and text_changes twice the normal size.
+        The scale at which to draw text over the image.
+        The recommended range is 1 - 10.
+        This option makes the text defined by text_left, text_right and text_changes drawn at n-times the normal size.
         This may be useful when using large picture formats such as 1280 x 720.
+        <p></p>
+        This option replaces the previous configuration options for:
+        <ul>
+          <li> text_double</li>
+        </ul>
+        <p></p>
         <p></p>
         <p></p>
       </ul>
@@ -3353,7 +3444,7 @@
 
         <p></p>
 
-        <h3><a name="lightswitch"></a> lightswitch </h3>
+        <h3><a name="lightswitch_percent"></a> lightswitch_percent </h3>
         <p></p>
         <ul>
           <li> Type: Integer</li>
@@ -3363,8 +3454,19 @@
         <p></p>
         Ignore sudden massive light intensity changes given as a percentage of the picture area that changed intensity.
         The value defines the picture areas in percent that will trigger the lightswitch condition. When lightswitch is
-        detected motion detection is disabled for 5 picture frames. This is to avoid false detection when light conditions
-        change and when a camera changes sensitivity at low light.
+        detected motion detection is disabled for a configured number of frames. This is to avoid false detection when
+        light conditions change and when a camera changes sensitivity at low light.
+        <p></p>
+
+        <h3><a name="lightswitch_frames"></a> lightswitch_frames </h3>
+        <p></p>
+        <ul>
+          <li> Type: Integer</li>
+          <li> Range / Valid values: 1 - 1000</li>
+          <li> Default: 5</li>
+        </ul>
+        <p></p>
+        The number of frames to ignore when the lightswitch condition is triggered (see above).
         <p></p>
 
         <h3><a name="minimum_motion_frames"></a> minimum_motion_frames </h3>
@@ -3631,7 +3733,7 @@
         </ul>
         <p></p>
         The full path and file name of the command to be executed when a lost camera is found
-        If motion fails to detect a lost camera, it will also fail to know it found one.
+        <br />If motion fails to detect a lost camera, it will also fail to know it found one.
         <p></p>
         You can use <a href="#conversion_specifiers">Conversion Specifiers</a>
         and spaces as part of the command.  This can be any type of program or script.
@@ -4357,7 +4459,7 @@
         the web interface.
         <p></p>
         To control from your own software (for example your own PHP front end) the motion.conf
-        option <a href="#webcontrol_html_output">webcontrol_html_output</a> can be set to <code>off</code> which
+        option <a href="#webcontrol_interface">webcontrol_interface</a> can be set to <code>1</code> which
         will cause Motion to remove the html tags in the responses.
         <p></p>
         Example PHP to pause camera 2
@@ -4365,7 +4467,7 @@
         readfile('http://localhost:8080/2/detection/pause');</pre>
         <p></p>
 
-        </p>
+        <p></p>
         <strong>ALERT!</strong> Security Warning! This feature also means you have to pay attention
         to the following.
         <ul>
@@ -4535,6 +4637,20 @@
         The syntax is username:password
         <p></p>
 
+        <h3><a name="stream_cors_header"></a> stream_cors_header </h3>
+        <p></p>
+        <ul>
+          <li> Type: String</li>
+          <li> Range / Valid values: * or a valid URI</li>
+          <li> Default: Not Defined</li>
+        </ul>
+        <p></p>
+        The Access-Control-Allow-Origin header value to be sent with the stream.
+        If unspecified, no Access-Control-Allow-Origin header is sent.
+        The header allows browsers to access the stream via cross-origin resource sharing (CORS).
+        For example, * allows access from browser client code served from any origin.
+        <p></p>
+
         <h3><a name="stream_preview_scale"></a> stream_preview_scale </h3>
         <p></p>
         <ul>
@@ -4605,19 +4721,20 @@
         same machine on which Motion is running.
         <p></p>
 
-        <h3><a name="webcontrol_html_output"></a> webcontrol_html_output </h3>
+        <h3><a name="webcontrol_interface"></a> webcontrol_interface </h3>
         <p></p>
         <ul>
-          <li> Type: Boolean</li>
-          <li> Range / Valid values: on, off</li>
-          <li> Default: on</li>
+          <li> Type: int</li>
+          <li> Range / Valid values: 0, 1</li>
+          <li> Default: 0</li>
         </ul>
         <p></p>
-        Enable HTML in the answer sent back to a browser connecting to the webcontrol_port.
-        This option must be placed in motion.conf and not in a camera config file.
-        The recommended value for most is "on" which means that you can navigate and control
-        Motion with a normal browser. By setting this option to "off" the replies are in plain
-        text which may be easier to parse for 3rd party programs that control Motion.
+        The type of webcontrol interface to provide.  The value of 0 provides a tradtional
+        web page interface.  The value of 1 provides a text only interface.
+        <p></p>
+        This option must be placed in motion.conf and not in a camera config file. The
+        recommended value for most is "0" which provides a page you can navigate and control
+        Motion with a normal browser.
         <p></p>
 
         <h3><a name="webcontrol_authentication"></a> webcontrol_authentication </h3>
@@ -4780,6 +4897,27 @@
         Sample Query
         <p></p>
         insert into security_events(camera, event_time_stamp) values('%t', '%Y-%m-%d %T')"
+        <p></p>
+        <p></p>
+
+        <h3><a name="sql_query_stop"></a> sql_query_stop </h3>
+        <p></p>
+        <ul>
+          <li> Type: String</li>
+          <li> Range / Valid values: Max 4095 characters</li>
+          <li> Default: Not Defined</li>
+        </ul>
+        <p></p>
+        SQL query that executes on a event where a file is closed after a event of motion.
+        This can be used to for example update the events table with an end timestamp for the recordings.
+        <p></p>
+        <p></p>
+        You can use <a href="#conversion_specifiers">Conversion Specifiers</a> within the query.
+        <p></p>
+        <p></p>
+        Sample Query
+        <p></p>
+        update security_events set event_end_time_stamp='%Y-%m-%d %T' where filename='%f'
         <p></p>
         <p></p>
 
@@ -5127,6 +5265,66 @@
         Number of steps to make.
         Only used for stepper motor tracking.
         <p></p>
+
+        <p></p>
+
+        <h3><a name="track_generic_move"></a> track_generic_move </h3>
+        <p></p>
+        <ul>
+          <li> Type: String</li>
+          <li> Range / Valid values: Max 4095 characters</li>
+          <li> Default: </li>
+        </ul>
+        <p></p>
+        The full path and file name of the command to execute to move a PTZ camera in generic tracking mode
+        <p></p>
+        Several parameters are provided as environment variables:
+        <ul>
+          <li> When called to recenter the camera: TRACK_ACTION=center TRACK_XOFF TRACK_YOFF</li>
+          <li> When called to track a motion: TRACK_ACTION=move TRACK_CENT_X TRACK_CENT_Y TRACK_CENT_WIDTH TRACK_CENT_HEIGHT TRACK_CENT_MINX TRACK_CENT_MAXX TRACK_CENT_MINY TRACK_CENT_MAXY TRACK_IMGS_WIDTH TRACK_IMGS_HEIGHT TRACK_IMGS_MOTIONSIZE</li>
+        </ul>
+        <p></p>
+        For instance, the following script may be called to move a PTZ netcam (Tested with VIVOTEK PZ81X1):
+<pre><code>#!/bin/bash
+
+LOCKFILE=/tmp/track_generic_move_netcam.lock
+if [ -e "$LOCKFILE" ]; then  # Trick to avoid flooding
+  exit 0                     # the netcam of multiple
+fi                           # moving commands.
+
+function movecam() {
+  touch $LOCKFILE
+  curl "http://youripaddress/cgi-bin/camctrl/camctrl.cgi?move=$1"
+  LOCKED=true
+}
+
+case "$TRACK_ACTION" in
+  "center")
+    movecam home
+    ;;
+  "move")
+    if [ "$TRACK_CENT_X" -lt "$((TRACK_IMGS_WIDTH*3/8))" ]; then
+      movecam left
+    fi
+    if [ "$TRACK_CENT_X" -gt "$((TRACK_IMGS_WIDTH*5/8))" ]; then
+      movecam right
+    fi
+    if [ "$TRACK_CENT_Y" -lt "$((TRACK_IMGS_HEIGHT*3/8))" ]; then
+      movecam up
+    fi
+    if [ "$TRACK_CENT_Y" -gt "$((TRACK_IMGS_HEIGHT*5/8))" ]; then
+      movecam down
+    fi
+    ;;
+esac
+
+if [ "$LOCKED" = "true" ]; then
+  sleep 2
+  rm -f "$LOCKFILE"
+fi</code></pre>
+        <p></p>
+        <p></p>
+
       </ul>
 
     </ul>

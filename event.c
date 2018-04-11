@@ -7,6 +7,7 @@
     This software is distributed under the GNU Public License Version 2
     see also the file 'COPYING'.
 */
+#include "translate.h"
 #include "netcam_rtsp.h"
 #include "ffmpeg.h"
 #include "picture.h"   /* already includes motion.h */
@@ -31,6 +32,7 @@ const char *eventList[] = {
     "EVENT_IMAGE_SNAPSHOT",
     "EVENT_IMAGE",
     "EVENT_IMAGEM",
+    "EVENT_IMAGE_PREVIEW",
     "EVENT_FILECLOSE",
     "EVENT_DEBUG",
     "EVENT_CRITICAL",
@@ -83,14 +85,14 @@ static void exec_command(struct context *cnt, char *command, char *filename, int
         execl("/bin/sh", "sh", "-c", stamp, " &", NULL);
 
         /* if above function succeeds the program never reach here */
-        MOTION_LOG(ALR, TYPE_EVENTS, SHOW_ERRNO, "Unable to start external command '%s'",
-                   stamp);
+        MOTION_LOG(ALR, TYPE_EVENTS, SHOW_ERRNO
+            ,_("Unable to start external command '%s'"), stamp);
 
         exit(1);
     }
 
-    MOTION_LOG(DBG, TYPE_EVENTS, NO_ERRNO, "Executing external command '%s'",
-               stamp);
+    MOTION_LOG(DBG, TYPE_EVENTS, NO_ERRNO
+        ,_("Executing external command '%s'"), stamp);
 }
 
 /*
@@ -102,8 +104,9 @@ static void event_newfile(struct context *cnt ATTRIBUTE_UNUSED,
             struct image_data *dummy ATTRIBUTE_UNUSED, char *filename, void *ftype,
             struct timeval *tv1 ATTRIBUTE_UNUSED)
 {
-    MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "File of type %ld saved to: %s",
-               (unsigned long)ftype, filename);
+    MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO
+        ,_("File of type %ld saved to: %s")
+        ,(unsigned long)ftype, filename);
 }
 
 
@@ -153,13 +156,20 @@ static void on_motion_detected_command(struct context *cnt,
 
 static void do_sql_query(char *sqlquery, struct context *cnt, int save_id)
 {
+
+    if (strlen(sqlquery) <= 0) {
+        /* don't try to execute empty queries */
+        return;
+    }
+
 #ifdef HAVE_MYSQL
     if (!strcmp(cnt->conf.database_type, "mysql")) {
         if (mysql_query(cnt->database, sqlquery) != 0) {
             int error_code = mysql_errno(cnt->database);
 
-            MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO, "Mysql query failed %s error code %d",
-                       mysql_error(cnt->database), error_code);
+            MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO
+                ,_("Mysql query failed %s error code %d")
+                ,mysql_error(cnt->database), error_code);
             /* Try to reconnect ONCE if fails continue and discard this sql query */
             if (error_code >= 2000) {
                 // Close connection before start a new connection
@@ -171,18 +181,21 @@ static void do_sql_query(char *sqlquery, struct context *cnt, int save_id)
                 if (!mysql_real_connect(cnt->database, cnt->conf.database_host,
                                         cnt->conf.database_user, cnt->conf.database_password,
                                         cnt->conf.database_dbname, 0, NULL, 0)) {
-                    MOTION_LOG(ALR, TYPE_DB, NO_ERRNO, "Cannot reconnect to MySQL"
-                               " database %s on host %s with user %s MySQL error was %s",
-                               cnt->conf.database_dbname,
-                               cnt->conf.database_host, cnt->conf.database_user,
-                               mysql_error(cnt->database));
+                    MOTION_LOG(ALR, TYPE_DB, NO_ERRNO
+                        ,_("Cannot reconnect to MySQL"
+                        " database %s on host %s with user %s MySQL error was %s"),
+                        cnt->conf.database_dbname,
+                        cnt->conf.database_host, cnt->conf.database_user,
+                        mysql_error(cnt->database));
                 } else {
-                    MOTION_LOG(INF, TYPE_DB, NO_ERRNO, "Re-Connection to Mysql database '%s' Succeed",
-                               cnt->conf.database_dbname);
+                    MOTION_LOG(INF, TYPE_DB, NO_ERRNO
+                        ,_("Re-Connection to Mysql database '%s' Succeed")
+                        ,cnt->conf.database_dbname);
                     if (mysql_query(cnt->database, sqlquery) != 0) {
                         int error_my = mysql_errno(cnt->database);
-                        MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO, "after re-connection Mysql query failed %s error code %d",
-                                   mysql_error(cnt->database), error_my);
+                        MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO
+                            ,_("after re-connection Mysql query failed %s error code %d")
+                            ,mysql_error(cnt->database), error_my);
                     }
                 }
             }
@@ -202,29 +215,34 @@ static void do_sql_query(char *sqlquery, struct context *cnt, int save_id)
 
         if (PQstatus(cnt->database_pg) == CONNECTION_BAD) {
 
-            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO, "Connection to PostgreSQL database '%s' failed: %s",
-                       cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
+            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                ,_("Connection to PostgreSQL database '%s' failed: %s")
+                ,cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
 
 	    // This function will close the connection to the server and attempt to reestablish a new connection to the same server,
 	    // using all the same parameters previously used. This may be useful for error recovery if a working connection is lost
             PQreset(cnt->database_pg);
 
             if (PQstatus(cnt->database_pg) == CONNECTION_BAD) {
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO, "Re-Connection to PostgreSQL database '%s' failed: %s",
-                           cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                    ,_("Re-Connection to PostgreSQL database '%s' failed: %s")
+                    ,cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
             } else {
-                MOTION_LOG(INF, TYPE_DB, NO_ERRNO, "Re-Connection to PostgreSQL database '%s' Succeed",
-                           cnt->conf.database_dbname);
+                MOTION_LOG(INF, TYPE_DB, NO_ERRNO
+                    ,_("Re-Connection to PostgreSQL database '%s' Succeed")
+                    ,cnt->conf.database_dbname);
             }
 
-        } else if (PQresultStatus(res) != PGRES_COMMAND_OK) {
-            MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO, "PGSQL query [%s] failed", sqlquery);
-            PQclear(res);
+        } else if (!(PQresultStatus(res) == PGRES_COMMAND_OK || PQresultStatus(res) == PGRES_TUPLES_OK)) {
+            MOTION_LOG(ERR, TYPE_DB, SHOW_ERRNO, "PGSQL query failed: [%s]  %s %s",
+                       sqlquery, PQresStatus(PQresultStatus(res)), PQresultErrorMessage(res));
         }
         if (save_id) {
             //ToDO:  Find the equivalent option for pgsql
             cnt->database_event_id = 0;
         }
+
+        PQclear(res);
     }
 #endif /* HAVE_PGSQL */
 
@@ -234,8 +252,7 @@ static void do_sql_query(char *sqlquery, struct context *cnt, int save_id)
         char *errmsg = 0;
         res = sqlite3_exec(cnt->database_sqlite3, sqlquery, NULL, 0, &errmsg);
         if (res != SQLITE_OK ) {
-            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO, "SQLite error was %s",
-                       errmsg);
+            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO, _("SQLite error was %s"), errmsg);
             sqlite3_free(errmsg);
         }
         if (save_id) {
@@ -273,7 +290,7 @@ static void event_sqlfirstmotion(struct context *cnt, motion_event type  ATTRIBU
 
 static void event_sqlnewfile(struct context *cnt, motion_event type  ATTRIBUTE_UNUSED,
             struct image_data *dummy ATTRIBUTE_UNUSED,
-            char *filename, void *arg, struct timeval *tv1 ATTRIBUTE_UNUSED)
+            char *filename, void *arg, struct timeval *currenttime_tv)
 {
     int sqltype = (unsigned long)arg;
 
@@ -289,7 +306,31 @@ static void event_sqlnewfile(struct context *cnt, motion_event type  ATTRIBUTE_U
         char sqlquery[PATH_MAX];
 
         mystrftime(cnt, sqlquery, sizeof(sqlquery), cnt->conf.sql_query,
-                   &cnt->current_image->timestamp_tv, filename, sqltype);
+                   currenttime_tv, filename, sqltype);
+
+        do_sql_query(sqlquery, cnt, 0);
+    }
+}
+
+static void event_sqlfileclose(struct context *cnt, motion_event type  ATTRIBUTE_UNUSED,
+            struct image_data *dummy ATTRIBUTE_UNUSED,
+            char *filename, void *arg, struct timeval *currenttime_tv)
+{
+    int sqltype = (unsigned long)arg;
+
+    /* Only log the file types we want */
+    if (!(cnt->conf.database_type) || (sqltype & cnt->sql_mask) == 0)
+        return;
+
+    /*
+     * We place the code in a block so we only spend time making space in memory
+     * for the sqlquery and timestr when we actually need it.
+     */
+    {
+        char sqlquery[PATH_MAX];
+
+        mystrftime(cnt, sqlquery, sizeof(sqlquery), cnt->conf.sql_query_stop,
+                   currenttime_tv, filename, sqltype);
 
         do_sql_query(sqlquery, cnt, 0);
     }
@@ -361,7 +402,8 @@ static void event_vlp_putpipe(struct context *cnt,
 {
     if (*(int *)devpipe >= 0) {
         if (vlp_putpipe(*(int *)devpipe, img_data->image_norm, cnt->imgs.size_norm) == -1)
-            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "Failed to put image into video pipe");
+            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                ,_("Failed to put image into video pipe"));
     }
 }
 #endif /* defined(HAVE_V4L2) && !__FreeBSD__  */
@@ -407,7 +449,7 @@ static void event_image_detect(struct context *cnt,
         } else {
             put_picture(cnt, fullfilename,img_data->image_norm, FTYPE_IMAGE);
         }
-
+        event(cnt, EVENT_FILECREATE, NULL, fullfilename, (void *)FTYPE_IMAGE, currenttime_tv);
     }
 }
 
@@ -440,6 +482,7 @@ static void event_imagem_detect(struct context *cnt,
         snprintf(fullfilenamem, PATH_MAX, "%s/%s.%s", cnt->conf.filepath, filenamem, imageext(cnt));
 
         put_picture(cnt, fullfilenamem, cnt->imgs.img_motion.image_norm, FTYPE_IMAGE_MOTION);
+        event(cnt, EVENT_FILECREATE, NULL, fullfilenamem, (void *)FTYPE_IMAGE, currenttime_tv);
     }
 }
 
@@ -473,6 +516,7 @@ static void event_image_snapshot(struct context *cnt,
         snprintf(filename, PATH_MAX, "%s.%s", filepath, imageext(cnt));
         snprintf(fullfilename, PATH_MAX, "%s/%s", cnt->conf.filepath, filename);
         put_picture(cnt, fullfilename, img_data->image_norm, FTYPE_IMAGE_SNAPSHOT);
+        event(cnt, EVENT_FILECREATE, NULL, fullfilename, (void *)FTYPE_IMAGE, currenttime_tv);
 
         /*
          *  Update symbolic link *after* image has been written so that
@@ -482,8 +526,8 @@ static void event_image_snapshot(struct context *cnt,
         remove(linkpath);
 
         if (symlink(filename, linkpath)) {
-            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "Could not create symbolic link [%s]",
-                       filename);
+            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                ,_("Could not create symbolic link [%s]"), filename);
             return;
         }
     } else {
@@ -492,10 +536,93 @@ static void event_image_snapshot(struct context *cnt,
         snprintf(fullfilename, PATH_MAX, "%s/%s", cnt->conf.filepath, filename);
         remove(fullfilename);
         put_picture(cnt, fullfilename, img_data->image_norm, FTYPE_IMAGE_SNAPSHOT);
+        event(cnt, EVENT_FILECREATE, NULL, fullfilename, (void *)FTYPE_IMAGE, currenttime_tv);
     }
 
     cnt->snapshot = 0;
 }
+
+/**
+ * event_image_preview
+ *      event_image_preview
+ *
+ * Returns nothing.
+ */
+static void event_image_preview(struct context *cnt,
+            motion_event type ATTRIBUTE_UNUSED,
+            struct image_data *img_data ATTRIBUTE_UNUSED, char *dummy1 ATTRIBUTE_UNUSED,
+            void *dummy2 ATTRIBUTE_UNUSED, struct timeval *currenttime_tv)
+{
+    int use_imagepath;
+    int basename_len;
+    const char *imagepath;
+    char previewname[PATH_MAX];
+    char filename[PATH_MAX];
+    struct image_data *saved_current_image;
+    int passthrough;
+
+    if (cnt->imgs.preview_image.diffs) {
+        /* Save current global context. */
+        saved_current_image = cnt->current_image;
+        /* Set global context to the image we are processing. */
+        cnt->current_image = &cnt->imgs.preview_image;
+
+        /* Use filename of movie i.o. jpeg_filename when set to 'preview'. */
+        use_imagepath = strcmp(cnt->conf.imagepath, "preview");
+
+        if ((cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe)) && !use_imagepath) {
+            if (cnt->conf.useextpipe && cnt->extpipe) {
+                basename_len = strlen(cnt->extpipefilename) + 1;
+                strncpy(previewname, cnt->extpipefilename, basename_len);
+                previewname[basename_len - 1] = '.';
+            } else {
+                /* Replace avi/mpg with jpg/ppm and keep the rest of the filename. */
+                basename_len = strlen(cnt->newfilename) - 3;
+                strncpy(previewname, cnt->newfilename, basename_len);
+            }
+
+            previewname[basename_len] = '\0';
+            strcat(previewname, imageext(cnt));
+
+            passthrough = util_check_passthrough(cnt);
+            if ((cnt->imgs.size_high > 0) && (!passthrough)) {
+                put_picture(cnt, previewname, cnt->imgs.preview_image.image_high , FTYPE_IMAGE);
+            } else {
+                put_picture(cnt, previewname, cnt->imgs.preview_image.image_norm , FTYPE_IMAGE);
+            }
+            event(cnt, EVENT_FILECREATE, NULL, previewname, (void *)FTYPE_IMAGE, currenttime_tv);
+        } else {
+            /*
+             * Save best preview-shot also when no movies are recorded or imagepath
+             * is used. Filename has to be generated - nothing available to reuse!
+             */
+            MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "different filename or picture only!");
+            /*
+             * conf.imagepath would normally be defined but if someone deleted it by
+             * control interface it is better to revert to the default than fail.
+             */
+            if (cnt->conf.imagepath)
+                imagepath = cnt->conf.imagepath;
+            else
+                imagepath = (char *)DEF_IMAGEPATH;
+
+            mystrftime(cnt, filename, sizeof(filename), imagepath, &cnt->imgs.preview_image.timestamp_tv, NULL, 0);
+            snprintf(previewname, PATH_MAX, "%s/%s.%s", cnt->conf.filepath, filename, imageext(cnt));
+
+            passthrough = util_check_passthrough(cnt);
+            if ((cnt->imgs.size_high > 0) && (!passthrough)) {
+                put_picture(cnt, previewname, cnt->imgs.preview_image.image_high , FTYPE_IMAGE);
+            } else {
+                put_picture(cnt, previewname, cnt->imgs.preview_image.image_norm, FTYPE_IMAGE);
+            }
+            event(cnt, EVENT_FILECREATE, NULL, previewname, (void *)FTYPE_IMAGE, currenttime_tv);
+        }
+
+        /* Restore global context values. */
+        cnt->current_image = saved_current_image;
+    }
+}
+
 
 static void event_camera_lost(struct context *cnt,
             motion_event type ATTRIBUTE_UNUSED,
@@ -529,16 +656,17 @@ static void on_movie_end_command(struct context *cnt,
 static void event_extpipe_end(struct context *cnt,
             motion_event type ATTRIBUTE_UNUSED,
             struct image_data *dummy ATTRIBUTE_UNUSED, char *dummy1 ATTRIBUTE_UNUSED,
-            void *dummy2 ATTRIBUTE_UNUSED, struct timeval *tv1 ATTRIBUTE_UNUSED)
+            void *dummy2 ATTRIBUTE_UNUSED, struct timeval *currenttime_tv)
 {
     if (cnt->extpipe_open) {
         cnt->extpipe_open = 0;
         fflush(cnt->extpipe);
-        MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "CLOSING: extpipe file desc %d, error state %d",
-                   fileno(cnt->extpipe), ferror(cnt->extpipe));
+        MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO
+            ,_("CLOSING: extpipe file desc %d, error state %d")
+            ,fileno(cnt->extpipe), ferror(cnt->extpipe));
         MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "pclose return: %d",
                    pclose(cnt->extpipe));
-        event(cnt, EVENT_FILECLOSE, NULL, cnt->extpipefilename, (void *)FTYPE_MPEG, NULL);
+        event(cnt, EVENT_FILECLOSE, NULL, cnt->extpipefilename, (void *)FTYPE_MPEG, currenttime_tv);
     }
 }
 
@@ -559,8 +687,7 @@ static void event_create_extpipe(struct context *cnt,
             moviepath = cnt->conf.moviepath;
         } else {
             moviepath = DEF_MOVIEPATH;
-            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "moviepath: %s",
-                       moviepath);
+            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("moviepath: %s"), moviepath);
         }
 
         mystrftime(cnt, stamp, sizeof(stamp), moviepath, currenttime_tv, NULL, 0);
@@ -569,18 +696,19 @@ static void event_create_extpipe(struct context *cnt,
         if (access(cnt->conf.filepath, W_OK)!= 0) {
             /* Permission denied */
             if (errno ==  EACCES) {
-                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "no write access to target directory %s",
-                           cnt->conf.filepath);
+                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                    ,_("no write access to target directory %s"), cnt->conf.filepath);
                 return ;
             /* Path not found - create it */
             } else if (errno ==  ENOENT) {
-                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "path not found, trying to create it %s ...",
-                           cnt->conf.filepath);
+                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                    ,_("path not found, trying to create it %s ..."), cnt->conf.filepath);
                 if (create_path(cnt->extpipefilename) == -1)
                     return ;
             }
             else {
-                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "error accesing path %s", cnt->conf.filepath);
+                MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                    ,_("error accesing path %s"), cnt->conf.filepath);
                 return ;
             }
         }
@@ -591,15 +719,15 @@ static void event_create_extpipe(struct context *cnt,
 
         mystrftime(cnt, stamp, sizeof(stamp), cnt->conf.extpipe, currenttime_tv, cnt->extpipefilename, 0);
 
-        MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "pipe: %s", stamp);
+        MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("pipe: %s"), stamp);
 
         MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "cnt->moviefps: %d", cnt->movie_fps);
 
-        event(cnt, EVENT_FILECREATE, NULL, cnt->extpipefilename, (void *)FTYPE_MPEG, NULL);
+        event(cnt, EVENT_FILECREATE, NULL, cnt->extpipefilename, (void *)FTYPE_MPEG, currenttime_tv);
         cnt->extpipe = popen(stamp, "w");
 
         if (cnt->extpipe == NULL) {
-            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "popen failed");
+            MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, _("popen failed"));
             return;
         }
 
@@ -617,22 +745,22 @@ static void event_extpipe_put(struct context *cnt,
 
     /* Check use_extpipe enabled and ext_pipe not NULL */
     if ((cnt->conf.useextpipe) && (cnt->extpipe != NULL)) {
-        MOTION_LOG(DBG, TYPE_EVENTS, NO_ERRNO, "Using extpipe");
+        MOTION_LOG(DBG, TYPE_EVENTS, NO_ERRNO, _("Using extpipe"));
         passthrough = util_check_passthrough(cnt);
         /* Check that is open */
         if ((cnt->extpipe_open) && (fileno(cnt->extpipe) > 0)) {
             if ((cnt->imgs.size_high > 0) && (!passthrough)){
                 if (!fwrite(img_data->image_high, cnt->imgs.size_high, 1, cnt->extpipe))
-                    MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "Error writing in pipe , state error %d",
-                           ferror(cnt->extpipe));
+                    MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                        ,_("Error writing in pipe , state error %d"), ferror(cnt->extpipe));
             } else {
                 if (!fwrite(img_data->image_norm, cnt->imgs.size_norm, 1, cnt->extpipe))
-                    MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, "Error writing in pipe , state error %d",
-                           ferror(cnt->extpipe));
+                    MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO
+                        ,_("Error writing in pipe , state error %d"), ferror(cnt->extpipe));
            }
         } else {
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "pipe %s not created or closed already ",
-                       cnt->conf.extpipe);
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO
+                ,_("pipe %s not created or closed already "), cnt->conf.extpipe);
         }
     }
 }
@@ -647,7 +775,7 @@ static void event_new_video(struct context *cnt,
 
     cnt->movie_fps = cnt->lastrate;
 
-    MOTION_LOG(INF, TYPE_EVENTS, NO_ERRNO, "Source FPS %d", cnt->movie_fps);
+    MOTION_LOG(INF, TYPE_EVENTS, NO_ERRNO, _("Source FPS %d"), cnt->movie_fps);
 
     if (cnt->movie_fps < 2) cnt->movie_fps = 2;
 
@@ -747,13 +875,12 @@ static void event_ffmpeg_newfile(struct context *cnt,
             cnt->ffmpeg_output->width  = cnt->imgs.width_high;
             cnt->ffmpeg_output->height = cnt->imgs.height_high;
             cnt->ffmpeg_output->high_resolution = TRUE;
-                cnt->ffmpeg_output->rtsp_data = cnt->rtsp_high;
+            cnt->ffmpeg_output->rtsp_data = cnt->rtsp_high;
         } else {
             cnt->ffmpeg_output->width  = cnt->imgs.width;
             cnt->ffmpeg_output->height = cnt->imgs.height;
             cnt->ffmpeg_output->high_resolution = FALSE;
             cnt->ffmpeg_output->rtsp_data = cnt->rtsp;
-                cnt->ffmpeg_output->rtsp_data = cnt->rtsp;
         }
         cnt->ffmpeg_output->tlapse = TIMELAPSE_NONE;
         cnt->ffmpeg_output->fps = cnt->movie_fps;
@@ -777,12 +904,13 @@ static void event_ffmpeg_newfile(struct context *cnt,
 
         retcd = ffmpeg_open(cnt->ffmpeg_output);
         if (retcd < 0){
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "Error opening context for movie output.");
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO
+                ,_("Error opening context for movie output."));
             free(cnt->ffmpeg_output);
             cnt->ffmpeg_output=NULL;
             return;
         }
-        event(cnt, EVENT_FILECREATE, NULL, cnt->newfilename, (void *)FTYPE_MPEG, NULL);
+        event(cnt, EVENT_FILECREATE, NULL, cnt->newfilename, (void *)FTYPE_MPEG, currenttime_tv);
     }
 
     if (cnt->conf.ffmpeg_output_debug) {
@@ -813,7 +941,8 @@ static void event_ffmpeg_newfile(struct context *cnt,
 
         retcd = ffmpeg_open(cnt->ffmpeg_output_debug);
         if (retcd < 0){
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "ffopen_open error creating (motion) file [%s]", cnt->motionfilename);
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO
+                ,_("ffopen_open error creating (motion) file [%s]"), cnt->motionfilename);
             free(cnt->ffmpeg_output_debug);
             cnt->ffmpeg_output_debug = NULL;
             return;
@@ -877,19 +1006,19 @@ static void event_ffmpeg_timelapse(struct context *cnt,
             (strcmp(cnt->conf.timelapse_codec,"swf") == 0) ){
 
             if (strcmp(cnt->conf.timelapse_codec,"swf") == 0) {
-                MOTION_LOG(WRN, TYPE_EVENTS, NO_ERRNO,
-                    "The swf container for timelapse no longer supported.  Using mpg container.");
+                MOTION_LOG(WRN, TYPE_EVENTS, NO_ERRNO
+                    ,_("The swf container for timelapse no longer supported.  Using mpg container."));
             }
 
-            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "Timelapse using mpg codec.");
-            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "Events will be appended to file");
+            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("Timelapse using mpg codec."));
+            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("Events will be appended to file"));
 
             cnt->ffmpeg_timelapse->tlapse = TIMELAPSE_APPEND;
             cnt->ffmpeg_timelapse->codec_name = codec_mpg;
             retcd = ffmpeg_open(cnt->ffmpeg_timelapse);
         } else {
-            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "Timelapse using mpeg4 codec.");
-            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "Events will be trigger new files");
+            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("Timelapse using mpeg4 codec."));
+            MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, _("Events will be trigger new files"));
 
             cnt->ffmpeg_timelapse->tlapse = TIMELAPSE_NEW;
             cnt->ffmpeg_timelapse->codec_name = codec_mpeg;
@@ -897,16 +1026,17 @@ static void event_ffmpeg_timelapse(struct context *cnt,
         }
 
         if (retcd < 0){
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "ffopen_open error creating (timelapse) file [%s]", cnt->timelapsefilename);
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO
+                ,_("ffopen_open error creating (timelapse) file [%s]"), cnt->timelapsefilename);
             free(cnt->ffmpeg_timelapse);
             cnt->ffmpeg_timelapse = NULL;
             return;
         }
-        event(cnt, EVENT_FILECREATE, NULL, cnt->timelapsefilename, (void *)FTYPE_MPEG_TIMELAPSE, NULL);
+        event(cnt, EVENT_FILECREATE, NULL, cnt->timelapsefilename, (void *)FTYPE_MPEG_TIMELAPSE, currenttime_tv);
     }
 
     if (ffmpeg_put_image(cnt->ffmpeg_timelapse, img_data, currenttime_tv) == -1) {
-        MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "Error encoding image");
+        MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, _("Error encoding image"));
     }
 
 }
@@ -918,12 +1048,12 @@ static void event_ffmpeg_put(struct context *cnt,
 {
     if (cnt->ffmpeg_output) {
         if (ffmpeg_put_image(cnt->ffmpeg_output, img_data, currenttime_tv) == -1){
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "Error encoding image");
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, _("Error encoding image"));
         }
     }
     if (cnt->ffmpeg_output_debug) {
         if (ffmpeg_put_image(cnt->ffmpeg_output_debug, &cnt->imgs.img_motion, currenttime_tv) == -1) {
-            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, "Error encoding image");
+            MOTION_LOG(ERR, TYPE_EVENTS, NO_ERRNO, _("Error encoding image"));
         }
     }
 }
@@ -932,21 +1062,21 @@ static void event_ffmpeg_closefile(struct context *cnt,
             motion_event type ATTRIBUTE_UNUSED,
             struct image_data *dummy1 ATTRIBUTE_UNUSED,
             char *dummy2 ATTRIBUTE_UNUSED, void *dummy3 ATTRIBUTE_UNUSED,
-            struct timeval *tv1 ATTRIBUTE_UNUSED)
+            struct timeval *currenttime_tv)
 {
 
     if (cnt->ffmpeg_output) {
         ffmpeg_close(cnt->ffmpeg_output);
         free(cnt->ffmpeg_output);
         cnt->ffmpeg_output = NULL;
-        event(cnt, EVENT_FILECLOSE, NULL, cnt->newfilename, (void *)FTYPE_MPEG, NULL);
+        event(cnt, EVENT_FILECLOSE, NULL, cnt->newfilename, (void *)FTYPE_MPEG, currenttime_tv);
     }
 
     if (cnt->ffmpeg_output_debug) {
         ffmpeg_close(cnt->ffmpeg_output_debug);
         free(cnt->ffmpeg_output_debug);
         cnt->ffmpeg_output_debug = NULL;
-        event(cnt, EVENT_FILECLOSE, NULL, cnt->motionfilename, (void *)FTYPE_MPEG_MOTION, NULL);
+        event(cnt, EVENT_FILECLOSE, NULL, cnt->motionfilename, (void *)FTYPE_MPEG_MOTION, currenttime_tv);
     }
 
 }
@@ -955,13 +1085,13 @@ static void event_ffmpeg_timelapseend(struct context *cnt,
             motion_event type ATTRIBUTE_UNUSED,
             struct image_data *dummy1 ATTRIBUTE_UNUSED,
             char *dummy2 ATTRIBUTE_UNUSED, void *dummy3 ATTRIBUTE_UNUSED,
-            struct timeval *tv1 ATTRIBUTE_UNUSED)
+            struct timeval *currenttime_tv)
 {
     if (cnt->ffmpeg_timelapse) {
         ffmpeg_close(cnt->ffmpeg_timelapse);
         free(cnt->ffmpeg_timelapse);
         cnt->ffmpeg_timelapse = NULL;
-        event(cnt, EVENT_FILECLOSE, NULL, cnt->timelapsefilename, (void *)FTYPE_MPEG_TIMELAPSE, NULL);
+        event(cnt, EVENT_FILECLOSE, NULL, cnt->timelapsefilename, (void *)FTYPE_MPEG_TIMELAPSE, currenttime_tv);
     }
 }
 
@@ -1040,6 +1170,10 @@ struct event_handlers event_handlers[] = {
     },
 #endif /* defined(HAVE_V4L2) && !__FreeBSD__  */
     {
+    EVENT_IMAGE_PREVIEW,
+    event_image_preview
+    },
+    {
     EVENT_STREAM,
     event_stream_put
     },
@@ -1071,6 +1205,12 @@ struct event_handlers event_handlers[] = {
     EVENT_TIMELAPSEEND,
     event_ffmpeg_timelapseend
     },
+#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
+    {
+    EVENT_FILECLOSE,
+    event_sqlfileclose
+    },
+#endif
     {
     EVENT_FILECLOSE,
     on_movie_end_command
