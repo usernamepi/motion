@@ -1096,7 +1096,7 @@ int dilate9(unsigned char *img, int width, int height, void *buffer)
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = 0;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
