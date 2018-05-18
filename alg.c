@@ -1597,7 +1597,7 @@ int erode9(unsigned char *const img, int width, int height, void *buffer, unsign
             out += width;
         }
     }
-    
+
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = flag;
     }
