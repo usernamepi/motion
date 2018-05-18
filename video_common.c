@@ -294,7 +294,7 @@ void vid_yuv422to420p(unsigned char *map, unsigned char *cap_map, int width, int
             // Load Y to line.val[0] and UV to line.val[1]
             uint8x8x2_t line1 = vld2_u8(&cap_map[wx]);
             uint8x8x2_t line2 = vld2_u8(&cap_map[wx + uv_offset]);
-            // Save Ys 
+            // Save Ys
             vst1_u8(pY + width, line2.val[0]);
             vst1_u8(pY, line1.val[0]);
             pY += 8;
