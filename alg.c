@@ -2583,7 +2583,7 @@ void alg_update_reference_frame(struct context *cnt, int action)
 
 // Leave ogiginal C function for tests
 void alg_update_reference_frame_c(struct context *cnt, int action)
-#else 
+#else
 void alg_update_reference_frame(struct context *cnt, int action)
 #endif
 {
