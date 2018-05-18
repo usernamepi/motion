@@ -1601,7 +1601,7 @@ int erode9(unsigned char *const img, int width, int height, void *buffer, unsign
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = flag;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
@@ -1804,7 +1804,7 @@ int erode5(unsigned char *const img, int width, int height, void *buffer, unsign
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = flag;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
