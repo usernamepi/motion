@@ -1096,7 +1096,7 @@ int dilate9(unsigned char *img, int width, int height, void *buffer)
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = 0;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
@@ -1597,11 +1597,11 @@ int erode9(unsigned char *const img, int width, int height, void *buffer, unsign
             out += width;
         }
     }
-    
+
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = flag;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
@@ -1804,7 +1804,7 @@ int erode5(unsigned char *const img, int width, int height, void *buffer, unsign
     for (int i = 0; i < height; i++) {
         img[i * width + width - 1] = flag;
     }
-    
+
     vsum = vpadd_u32(vsum, vsum);
     return vget_lane_u32(vsum, 0) + sum;
 }
@@ -2583,7 +2583,7 @@ void alg_update_reference_frame(struct context *cnt, int action)
 
 // Leave ogiginal C function for tests
 void alg_update_reference_frame_c(struct context *cnt, int action)
-#else 
+#else
 void alg_update_reference_frame(struct context *cnt, int action)
 #endif
 {
