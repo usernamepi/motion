@@ -17,6 +17,7 @@
 
 #if defined(__ARM_NEON)
 #include <arm_neon.h>
+#pragma  message "Compiling with ARM_NEON"
 #endif
 
 typedef unsigned char uint8_t;
