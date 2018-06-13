@@ -1902,7 +1902,6 @@ static void webu_process_action(struct context **cnt, struct webui_ctx *webui) {
             cnt[thread_nbr]->restart = 0;
             cnt[thread_nbr]->makemovie = 1;
             cnt[thread_nbr]->finish = 1;
-            cnt[thread_nbr]->watchdog = WATCHDOG_OFF;
         }
     } else if (!strcmp(webui->uri_cmd2,"start")){
         if (thread_nbr == 0) {
@@ -1972,10 +1971,14 @@ static void webu_process_config(struct context **cnt, struct webui_ctx *webui) {
                 (cnt[thread_nbr]->vdev != NULL)) cnt[thread_nbr]->vdev->update_parms = TRUE;
 
             /* If changing language, do it now */
-            if (!strcasecmp(config_params[indx].param_name, "motion_lang")){
-                translate_locale_chg(webui->uri_value1);
+            if (!strcasecmp(config_params[indx].param_name, "native_language")){
+                nls_enabled = cnt[thread_nbr]->conf.native_language;
+                if (nls_enabled){
+                    MOTION_LOG(INF, TYPE_ALL, NO_ERRNO,_("Native Language : on"));
+                } else {
+                    MOTION_LOG(INF, TYPE_ALL, NO_ERRNO,"Native Language : off");
+                }
             }
-
         } else {
             MOTION_LOG(NTC, TYPE_STREAM, NO_ERRNO,"set the value to null/zero");
         }

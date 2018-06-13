@@ -7,10 +7,10 @@
     This software is distributed under the GNU Public License Version 2
     see also the file 'COPYING'.
 */
+#include "picture.h"   /* already includes motion.h */
 #include "translate.h"
 #include "netcam_rtsp.h"
 #include "ffmpeg.h"
-#include "picture.h"   /* already includes motion.h */
 #include "event.h"
 #include "video_loopback.h"
 #include "video_common.h"
@@ -724,7 +724,7 @@ static void event_create_extpipe(struct context *cnt,
         MOTION_LOG(NTC, TYPE_EVENTS, NO_ERRNO, "cnt->moviefps: %d", cnt->movie_fps);
 
         event(cnt, EVENT_FILECREATE, NULL, cnt->extpipefilename, (void *)FTYPE_MPEG, currenttime_tv);
-        cnt->extpipe = popen(stamp, "w");
+        cnt->extpipe = popen(stamp, "we");
 
         if (cnt->extpipe == NULL) {
             MOTION_LOG(ERR, TYPE_EVENTS, SHOW_ERRNO, _("popen failed"));
