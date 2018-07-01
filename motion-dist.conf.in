@@ -47,6 +47,28 @@ videodevice /dev/video0
 
 # v4l2_palette allows one to choose preferable palette to be use by motion
 # See motion_guide.html for the valid options and values.  (default: 17)
+#v4l2_palette 0 V4L2_PIX_FMT_SN9C10X S910
+#v4l2_palette 1 V4L2_PIX_FMT_SBGGR16 BYR2
+#v4l2_palette 2 V4L2_PIX_FMT_SBGGR8 BA81
+#v4l2_palette 3 V4L2_PIX_FMT_SPCA561 S561
+#v4l2_palette 4 V4L2_PIX_FMT_SGBRG8 GBRG
+#v4l2_palette 5 V4L2_PIX_FMT_SGRBG8 GRBG
+#v4l2_palette 6 V4L2_PIX_FMT_PAC207 P207
+#v4l2_palette 7 V4L2_PIX_FMT_PJPG PJPG
+#v4l2_palette 8 V4L2_PIX_FMT_MJPEG MJPG
+#v4l2_palette 9 V4L2_PIX_FMT_JPEG JPEG
+#v4l2_palette 10 V4L2_PIX_FMT_RGB24 RGB3
+#v4l2_palette 11 V4L2_PIX_FMT_SPCA501 S501
+#v4l2_palette 12 V4L2_PIX_FMT_SPCA505 S505
+#v4l2_palette 13 V4L2_PIX_FMT_SPCA508 S508
+#v4l2_palette 14 V4L2_PIX_FMT_UYVY UYVY
+#v4l2_palette 15 V4L2_PIX_FMT_YUYV YUYV
+#v4l2_palette 16 V4L2_PIX_FMT_YUV422P 422P
+#v4l2_palette 17 V4L2_PIX_FMT_YUV420 YU12
+#v4l2_palette 18 V4L2_PIX_FMT_Y10 Y10
+#v4l2_palette 19 V4L2_PIX_FMT_Y12 Y12
+#v4l2_palette 20 V4L2_PIX_FMT_GREY GREY
+#v4l2_palette 21 V4L2_PIX_FMT_H264 H264
 v4l2_palette 17
 
 # Tuner device to be used for capturing using tuner as source (default /dev/tuner0)
@@ -318,7 +340,7 @@ snapshot_interval 0
 # %i and %J = width and height of motion area,
 # %K and %L = X and Y coordinates of motion center
 # %C = value defined by text_event - do not use with text_event!
-# {host} = host name
+# %{host} = host name
 # You can put quotation marks around the text to allow
 # leading spaces
 ############################################################
@@ -378,7 +400,7 @@ text_scale 1
 # %i and %J = width and height of motion area,
 # %K and %L = X and Y coordinates of motion center
 # %C = value defined by text_event
-# {host} = host name
+# %{host} = host name
 # Quotation marks round string are allowed.
 ############################################################
 
@@ -573,7 +595,7 @@ track_stepsize 40
 # %C = value defined by text_event
 # %f = filename with full path
 # %n = number indicating filetype
-# {host} = host name
+# %{host} = host name
 # Both %f and %n are only defined for on_picture_save,
 # on_movie_start and on_movie_end
 # Quotation marks round string are allowed.
