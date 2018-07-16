@@ -330,6 +330,70 @@ void vid_yuv422to420p(unsigned char *map, unsigned char *cap_map, int width, int
     }
 }
 
+void vid_yuv422pto420p(unsigned char *map, unsigned char *cap_map, int width, int height)
+{
+    uint8_t * const pY = map;
+    uint8_t *pU = pY + (width * height);
+    uint8_t *pV = pU + (width * height) / 4;
+    const int uv_stride = width / 2;
+    const uint8_t * const srcY = cap_map;
+    const uint8_t *srcU1 = srcY + width * height;
+    const uint8_t *srcU2 = srcU1 + uv_stride;
+    const uint8_t *srcV1 = srcU1 + (width/2 * height);
+    const uint8_t *srcV2 = srcV1 + uv_stride;
+
+    /*Planar version of 422 */
+    /* Create the Y plane. */
+    memcpy(pY, srcY, width * height);
+
+    /* Create U and V planes. */
+    for (int i = 0; i < (height / 2); i++) {
+        int j = 0;
+        for (; j <= uv_stride - 16; j += 16) {
+            const uint8x16_t u1 = vld1q_u8(srcU1);
+            srcU1 += 16;
+            const uint8x16_t u2 = vld1q_u8(srcU2);
+            srcU2 += 16;
+            const uint8x16_t v1 = vld1q_u8(srcV1);
+            srcV1 += 16;
+            const uint8x16_t v2 = vld1q_u8(srcV2);
+            srcV2 += 16;
+
+            const uint8x16_t u = vhaddq_u8(u1, u2);
+            const uint8x16_t v = vhaddq_u8(v1, v2);
+            vst1q_u8(pU, u);
+            pU += 16;
+            vst1q_u8(pV, v);
+            pV += 16;
+        }
+        for (; j <= uv_stride - 8; j += 8) {
+            const uint8x8_t u1 = vld1_u8(srcU1);
+            srcU1 += 8;
+            const uint8x8_t u2 = vld1_u8(srcU2);
+            srcU2 += 8;
+            const uint8x8_t v1 = vld1_u8(srcV1);
+            srcV1 += 8;
+            const uint8x8_t v2 = vld1_u8(srcV2);
+            srcV2 += 8;
+
+            const uint8x8_t u = vhadd_u8(u1, u2);
+            const uint8x8_t v = vhadd_u8(v1, v2);
+            vst1_u8(pU, u);
+            pU += 8;
+            vst1_u8(pV, v);
+            pV += 8;
+        }
+        for (; j < uv_stride; j++) {
+            *pU++ = (((int) *srcU1++) + ((int) *srcU2++)) / 2;
+            *pV++ = (((int) *srcV1++) + ((int) *srcV2++)) / 2;
+        }
+        srcU1 += uv_stride;
+        srcU2 += uv_stride;
+        srcV1 += uv_stride;
+        srcV2 += uv_stride;
+    }
+}
+
 void vid_uyvyto420p(unsigned char *map, unsigned char *cap_map, int width, int height)
 {
     uint8_t *pY = map;
