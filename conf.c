@@ -1236,17 +1236,6 @@ config_param config_params[] = {
     WEBUI_LEVEL_ADVANCED
     },
     {
-    "substream_port",
-    "\n############################################################\n"
-    "# Live Substream Server\n"
-    "############################################################\n\n"
-    "# The mini-http server listens to this port for requests (default: 0 = disabled)",
-    0,
-    CONF_OFFSET(substream_port),
-    copy_int,
-    print_int
-    },
-    {
     "stream_quality",
     "# Quality of the jpeg (in percent) images produced (default: 50)",
     0,
