@@ -955,7 +955,7 @@ static int motion_init(struct context *cnt)
 
     MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
         ,_("Camera %d started: motion detection %s"),
-        cnt->conf.camera_id, cnt->pause ? _("Disabled"):_("Enabled"));
+        cnt->camera_id, cnt->pause ? _("Disabled"):_("Enabled"));
 
     if (!cnt->conf.filepath)
         cnt->conf.filepath = mystrdup(".");
@@ -976,6 +976,22 @@ static int motion_init(struct context *cnt)
         MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
             ,_("Using default dimensions %dx%d"),cnt->conf.height,cnt->conf.width);
     }
+    if (cnt->conf.width % 8) {
+        MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+            ,_("Image width (%d) requested is not modulo 8."), cnt->conf.width);
+        cnt->conf.width = cnt->conf.width - (cnt->conf.width % 8) + 8;
+        MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+            ,_("Adjusting width to next higher multiple of 8 (%d)."), cnt->conf.width);
+    }
+    if (cnt->conf.height % 8) {
+        MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+            ,_("Image height (%d) requested is not modulo 8."), cnt->conf.height);
+        cnt->conf.height = cnt->conf.height - (cnt->conf.height % 8) + 8;
+        MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+            ,_("Adjusting height to next higher multiple of 8 (%d)."), cnt->conf.height);
+    }
+    if (cnt->conf.width  < 64) cnt->conf.width  = 64;
+    if (cnt->conf.height < 64) cnt->conf.height = 64;
 
     /* set the device settings */
     cnt->video_dev = vid_start(cnt);
@@ -1001,6 +1017,21 @@ static int motion_init(struct context *cnt)
             ,_("Motion only supports width and height modulo 8"));
         return -3;
     }
+    /* Revalidate we got a valid image size */
+    if ((cnt->imgs.width % 8) || (cnt->imgs.height % 8)) {
+        MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+            ,_("Image width (%d) or height(%d) requested is not modulo 8.")
+            ,cnt->imgs.width, cnt->imgs.height);
+        return -3;
+    }
+
+    if ((cnt->imgs.width  < 64) || (cnt->imgs.height < 64)){
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+            ,_("Motion only supports width and height greater than or equal to 64 %dx%d")
+            ,cnt->imgs.width, cnt->imgs.height);
+            return -3;
+    }
+
     /* We set size_high here so that it can be used in the retry function to determine whether
      * we need to break and reallocate buffers
      */
@@ -1021,11 +1052,13 @@ static int motion_init(struct context *cnt)
     cnt->imgs.labelsize = mymalloc((cnt->imgs.motionsize/2+1) * sizeof(*cnt->imgs.labelsize));
     cnt->imgs.preview_image.image_norm = mymalloc(cnt->imgs.size_norm);
     cnt->imgs.common_buffer = mymalloc(3 * cnt->imgs.width * cnt->imgs.height);
-
     if (cnt->imgs.size_high > 0){
         cnt->imgs.image_virgin.image_high = mymalloc(cnt->imgs.size_high);
         cnt->imgs.preview_image.image_high = mymalloc(cnt->imgs.size_high);
     }
+
+    pthread_mutex_init(&cnt->mutex_stream, NULL);
+    cnt->imgs.image_stream = mymalloc(cnt->imgs.size_norm);
 
     /* Set output picture type */
     if (!strcmp(cnt->conf.picture_type, "ppm"))
@@ -1247,46 +1280,52 @@ static int motion_init(struct context *cnt)
     /* Set threshold value */
     cnt->threshold = cnt->conf.max_changes;
 
-    /* Initialize stream server if stream port is specified to not 0 */
-    if (cnt->conf.stream_port) {
-        if (stream_init (&(cnt->stream), cnt->conf.stream_port, cnt->conf.stream_localhost,
-            cnt->conf.ipv6_enabled, cnt->conf.stream_cors_header) == -1) {
-            MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
-                ,_("Problem enabling motion-stream server in port %d")
-                ,cnt->conf.stream_port);
-            cnt->conf.stream_port = 0;
-            cnt->finish = 1;
-        } else {
-            MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
-                ,_("Started motion-stream server on port %d (auth %s)")
-                ,cnt->conf.stream_port
-                ,cnt->conf.stream_auth_method ? _("Enabled"):_("Disabled"));
-        }
-    }
+    if (cnt->conf.stream_preview_method == 3){
+        /* This is the depreciated Stop stream process */
 
-    /* Initialize 50% scaled substream server if substream port is specified to not 0
-       But only if dimensions are 8-modulo after scaling. Otherwise disable substream */
-    if (cnt->conf.substream_port){
-        if ((cnt->conf.width / 2) % 8 == 0  && (cnt->conf.height / 2) % 8 == 0){
-            if (stream_init (&(cnt->substream), cnt->conf.substream_port, cnt->conf.stream_localhost,
+        /* Initialize stream server if stream port is specified to not 0 */
+
+        if (cnt->conf.stream_port) {
+            if (stream_init (&(cnt->stream), cnt->conf.stream_port, cnt->conf.stream_localhost,
                 cnt->conf.ipv6_enabled, cnt->conf.stream_cors_header) == -1) {
                 MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
-                    ,_("Problem enabling motion-substream server in port %d")
-                    ,cnt->conf.substream_port);
-                cnt->conf.substream_port = 0;
+                    ,_("Problem enabling motion-stream server in port %d")
+                    ,cnt->conf.stream_port);
+                cnt->conf.stream_port = 0;
                 cnt->finish = 1;
             } else {
                 MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
-                    ,_("Started motion-substream server on port %d (auth %s)")
-                    ,cnt->conf.substream_port
+                    ,_("Started motion-stream server on port %d (auth %s)")
+                    ,cnt->conf.stream_port
                     ,cnt->conf.stream_auth_method ? _("Enabled"):_("Disabled"));
             }
-        } else {
-            MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
-                ,_("Original resolution must be modulo of 16 for substream"));
-            cnt->conf.substream_port = 0;
         }
-    }
+
+        /* Initialize 50% scaled substream server if substream port is specified to not 0
+        But only if dimensions are 8-modulo after scaling. Otherwise disable substream */
+        if (cnt->conf.substream_port){
+            if ((cnt->conf.width / 2) % 8 == 0  && (cnt->conf.height / 2) % 8 == 0){
+                if (stream_init (&(cnt->substream), cnt->conf.substream_port, cnt->conf.stream_localhost,
+                    cnt->conf.ipv6_enabled, cnt->conf.stream_cors_header) == -1) {
+                    MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
+                        ,_("Problem enabling motion-substream server in port %d")
+                        ,cnt->conf.substream_port);
+                    cnt->conf.substream_port = 0;
+                    cnt->finish = 1;
+                } else {
+                    MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
+                        ,_("Started motion-substream server on port %d (auth %s)")
+                        ,cnt->conf.substream_port
+                        ,cnt->conf.stream_auth_method ? _("Enabled"):_("Disabled"));
+                }
+            } else {
+                MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
+                    ,_("Original resolution must be modulo of 16 for substream"));
+                cnt->conf.substream_port = 0;
+            }
+        }
+    } /* End of legacy stream methods*/
+
 
     /* Prevent first few frames from triggering motion... */
     cnt->moved = 8;
@@ -1381,13 +1420,23 @@ static int motion_init(struct context *cnt)
  *
  * Returns:     nothing
  */
-static void motion_cleanup(struct context *cnt)
-{
-    /* Stop stream */
-    event(cnt, EVENT_STOP, NULL, NULL, NULL, NULL);
+static void motion_cleanup(struct context *cnt) {
+
+    if (cnt->conf.stream_preview_method == 3){
+        /* This is the depreciated Stop stream process */
+        if ((cnt->conf.stream_port) && (cnt->stream.socket != -1))
+            stream_stop(&cnt->stream);
+
+        if ((cnt->conf.substream_port) && (cnt->substream.socket != -1))
+            stream_stop(&cnt->substream);
+    }
 
     event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, NULL);
     event(cnt, EVENT_ENDMOTION, NULL, NULL, NULL, NULL);
+
+    pthread_mutex_destroy(&cnt->mutex_stream);
+    if (cnt->imgs.image_stream) free(cnt->imgs.image_stream);
+    cnt->imgs.image_stream = NULL;
 
     if (cnt->video_dev >= 0) {
         MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, _("Calling vid_close() from motion_cleanup"));
@@ -1757,6 +1806,21 @@ static int mlp_retry(struct context *cnt){
         MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
             ,_("Retrying until successful connection with camera"));
         cnt->video_dev = vid_start(cnt);
+
+        if ((cnt->imgs.width % 8) || (cnt->imgs.height % 8)) {
+            MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
+                ,_("Image width (%d) or height(%d) requested is not modulo 8.")
+                ,cnt->imgs.width, cnt->imgs.height);
+            return 1;
+        }
+
+        if ((cnt->imgs.width  < 64) || (cnt->imgs.height < 64)){
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+                ,_("Motion only supports width and height greater than or equal to 64 %dx%d")
+                ,cnt->imgs.width, cnt->imgs.height);
+                return 1;
+        }
+
         /*
          * If the netcam has different dimensions than in the config file
          * we need to restart Motion to re-allocate all the buffers
@@ -2930,6 +2994,8 @@ static void motion_shutdown(void){
 
     motion_remove_pid();
 
+    webu_stop(cnt_list);
+
     while (cnt_list[++i])
         context_destroy(cnt_list[i]);
 
@@ -2938,6 +3004,45 @@ static void motion_shutdown(void){
 
     vid_mutex_destroy();
 }
+
+static void motion_camera_ids(void){
+    /* Set the camera id's on the context.  They must be unique */
+    int indx, indx2, invalid_ids;
+
+    /* Set defaults */
+    indx = 0;
+    while (cnt_list[indx] != NULL){
+        if (cnt_list[indx]->conf.camera_id > 0){
+            cnt_list[indx]->camera_id = cnt_list[indx]->conf.camera_id;
+        } else {
+            cnt_list[indx]->camera_id = indx;
+        }
+        indx++;
+    }
+
+    invalid_ids = FALSE;
+    indx = 0;
+    while (cnt_list[indx] != NULL){
+        if (cnt_list[indx]->camera_id > 32000) invalid_ids = TRUE;
+        indx2 = indx + 1;
+        while (cnt_list[indx2] != NULL){
+            if (cnt_list[indx]->camera_id == cnt_list[indx2]->camera_id) invalid_ids = TRUE;
+
+            indx2++;
+        }
+        indx++;
+    }
+    if (invalid_ids){
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+            ,_("Camara IDs are not unique or have values over 32,000.  Falling back to thread numbers"));
+        indx = 0;
+        while (cnt_list[indx] != NULL){
+            cnt_list[indx]->camera_id = indx;
+            indx++;
+        }
+    }
+}
+
 
 /**
  * motion_startup
@@ -3013,9 +3118,6 @@ static void motion_startup(int daemonize, int argc, char *argv[])
     set_log_level(cnt_list[0]->log_level);
     set_log_type(cnt_list[0]->log_type);
 
-    conf_output_parms(cnt_list);
-
-    initialize_chars();
 
     if (daemonize) {
         /*
@@ -3030,6 +3132,14 @@ static void motion_startup(int daemonize, int argc, char *argv[])
 
     if (cnt_list[0]->conf.setup_mode)
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO,_("Motion running in setup mode."));
+
+    conf_output_parms(cnt_list);
+
+    motion_camera_ids();
+
+    initialize_chars();
+
+    webu_start(cnt_list);
 
     vid_mutex_init();
 
@@ -3055,18 +3165,18 @@ static void motion_start_thread(struct context *cnt){
     if (strcmp(cnt->conf_filename, "")){
         cnt->conf_filename[sizeof(cnt->conf_filename) - 1] = '\0';
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, _("Camera ID: %d is from %s")
-            ,cnt->conf.camera_id, cnt->conf_filename);
+            ,cnt->camera_id, cnt->conf_filename);
     }
 
     if (cnt->conf.netcam_url){
         snprintf(service,6,"%s",cnt->conf.netcam_url);
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO,_("Camera ID: %d Camera Name: %s Service: %s")
-            ,cnt->conf.camera_id, cnt->conf.camera_name,service);
+            ,cnt->camera_id, cnt->conf.camera_name,service);
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, _("Stream port %d"),
             cnt->conf.stream_port);
     } else {
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO,_("Camera ID: %d Camera Name: %s Device: %s")
-            ,cnt->conf.camera_id, cnt->conf.camera_name,cnt->conf.video_device);
+            ,cnt->camera_id, cnt->conf.camera_name,cnt->conf.video_device);
     }
 
     /*
@@ -3153,33 +3263,6 @@ static void motion_restart(int argc, char **argv){
     MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO,_("Motion restarted"));
 
     restart = 0;
-}
-
-static void motion_webcontrol_start(void){
-
-  /* Create a thread for the web control interface if requested. */
-
-    pthread_attr_t thread_attr;
-    pthread_t thread_id;
-
-    if (cnt_list[0]->conf.webcontrol_port) {
-        pthread_mutex_lock(&global_lock);
-            threads_running++;
-            cnt_list[0]->webcontrol_running = 1;
-        pthread_mutex_unlock(&global_lock);
-
-        pthread_attr_init(&thread_attr);
-        pthread_attr_setdetachstate(&thread_attr, PTHREAD_CREATE_DETACHED);
-
-        if (pthread_create(&thread_id, &thread_attr, &webu_main, cnt_list)) {
-            /* thread create failed, undo running state */
-            pthread_mutex_lock(&global_lock);
-                threads_running--;
-                cnt_list[0]->webcontrol_running = 0;
-            pthread_mutex_unlock(&global_lock);
-        }
-        pthread_attr_destroy(&thread_attr);
-    }
 }
 
 static void motion_watchdog(int indx){
@@ -3300,9 +3383,6 @@ static int motion_check_threadcount(void){
         if (cnt_list[indx]->running || cnt_list[indx]->restart)
             motion_threads_running++;
     }
-    if (cnt_list[0]->conf.webcontrol_port &&
-        cnt_list[0]->webcontrol_running)
-        motion_threads_running++;
 
     if (((motion_threads_running == 0) && finish) ||
         ((motion_threads_running == 0) && (threads_running == 0))) {
@@ -3351,11 +3431,8 @@ int main (int argc, char **argv)
 
         for (i = cnt_list[1] != NULL ? 1 : 0; cnt_list[i]; i++) {
             cnt_list[i]->threadnr = i ? i : 1;
-            cnt_list[i]->conf.camera_id = cnt_list[i]->conf.camera_id ? cnt_list[i]->conf.camera_id: i;
             motion_start_thread(cnt_list[i]);
         }
-
-        motion_webcontrol_start();
 
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
             ,_("Waiting for threads to finish, pid: %d"), getpid());
@@ -3758,7 +3835,7 @@ size_t mystrftime(const struct context *cnt, char *s, size_t max, const char *us
                 break;
 
             case 't': // camera id
-                sprintf(tempstr, "%*d", width, cnt->conf.camera_id);
+                sprintf(tempstr, "%*d", width, cnt->camera_id);
                 break;
 
             case 'C': // text_event
