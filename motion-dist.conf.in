@@ -9,6 +9,20 @@
 #
 
 ############################################################
+# Available string templates:
+#
+# %Y = year, %m = month, %d = date,
+# %H = hour, %M = minute, %S = second, %T = HH:MM:SS,
+# %v = event, %q = frame number, %t = camera id number,
+# %D = changed pixels, %N = noise level, \n = new line,
+# %i and %J = width and height of motion area,
+# %K and %L = X and Y coordinates of motion center
+# %C = value defined by text_event - do not use with text_event!
+# %{host} = host name
+#
+############################################################
+
+############################################################
 # System control configuration parameters
 ############################################################
 
@@ -32,6 +46,32 @@ log_level 6
 
 # Video device (e.g. /dev/video0) to be used for capturing.
 videodevice /dev/video0
+
+# v4l2_palette allows one to choose preferable palette to be use by motion
+# See motion_guide.html for the valid options and values.  (default: 17)
+#v4l2_palette 0 V4L2_PIX_FMT_SN9C10X S910
+#v4l2_palette 1 V4L2_PIX_FMT_SBGGR16 BYR2
+#v4l2_palette 2 V4L2_PIX_FMT_SBGGR8 BA81
+#v4l2_palette 3 V4L2_PIX_FMT_SPCA561 S561
+#v4l2_palette 4 V4L2_PIX_FMT_SGBRG8 GBRG
+#v4l2_palette 5 V4L2_PIX_FMT_SGRBG8 GRBG
+#v4l2_palette 6 V4L2_PIX_FMT_PAC207 P207
+#v4l2_palette 7 V4L2_PIX_FMT_PJPG PJPG
+#v4l2_palette 8 V4L2_PIX_FMT_MJPEG MJPG
+#v4l2_palette 9 V4L2_PIX_FMT_JPEG JPEG
+#v4l2_palette 10 V4L2_PIX_FMT_RGB24 RGB3
+#v4l2_palette 11 V4L2_PIX_FMT_SPCA501 S501
+#v4l2_palette 12 V4L2_PIX_FMT_SPCA505 S505
+#v4l2_palette 13 V4L2_PIX_FMT_SPCA508 S508
+#v4l2_palette 14 V4L2_PIX_FMT_UYVY UYVY
+#v4l2_palette 15 V4L2_PIX_FMT_YUYV YUYV
+#v4l2_palette 16 V4L2_PIX_FMT_YUV422P 422P
+#v4l2_palette 17 V4L2_PIX_FMT_YUV420 YU12
+#v4l2_palette 18 V4L2_PIX_FMT_Y10 Y10
+#v4l2_palette 19 V4L2_PIX_FMT_Y12 Y12
+#v4l2_palette 20 V4L2_PIX_FMT_GREY GREY
+#v4l2_palette 21 V4L2_PIX_FMT_H264 H264
+v4l2_palette 17
 
 # Parameters to control video device.  See motion_guide.html
 ; vid_control_params value
@@ -134,6 +174,14 @@ movie_codec mkv
 # File name(without extension) for movies relative to target directory
 movie_filename %t-%v-%Y%m%d%H%M%S
 
+# Bool to enable or disable extpipe (default: off)
+use_extpipe off
+
+# External program (full path and opts) to pipe raw video to
+;extpipe x264 - --input-res %wx%h --fps %fps --bitrate 2000 --preset ultrafast --quiet -o %f.mp4
+;extpipe mencoder -demuxer rawvideo -rawvideo w=%w:h=%h:fps=%fps -ovc x264 -x264encopts preset=ultrafast -of lavf -o %f.mp4 - -fps %fps
+;extpipe ffmpeg -y -f rawvideo -pix_fmt yuv420p -video_size %wx%h -framerate %fps -i pipe:0 -vcodec libx264 -preset ultrafast -f mp4 %f.mp4
+
 ############################################################
 # Webcontrol configuration parameters
 ############################################################
@@ -169,3 +217,4 @@ stream_localhost on
 # Directory to read '.conf' files for cameras.
 ##############################################################
 ; camera_dir @sysconfdir@/motion/conf.d
+
