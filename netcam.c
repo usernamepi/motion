@@ -321,11 +321,6 @@ static void *netcam_handler_loop(void *arg)
                         ,_("camera re-connected"));
                     open_error = 0;
                 }
-            } else if (netcam->caps.streaming == NCS_BLOCK) { /* MJPG-Block streaming */
-                /*
-                 * Since we cannot move in the stream here, because we will read past the
-                 * MJPG-block-header, error handling is done while reading MJPG blocks.
-                 */
             }
         }
 
@@ -639,7 +634,7 @@ int netcam_start(struct context *cnt){
     pthread_cond_init(&netcam->exiting, NULL);
 
     /* Initialize the average frame time to the user's value. */
-    netcam->av_frame_time = 1000000.0 / cnt->conf.frame_limit;
+    netcam->av_frame_time = 1000000.0 / cnt->conf.framerate;
 
     MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
         ,_("Network Camera starting for camera (%s)"), cnt->conf.camera_name);
@@ -735,14 +730,9 @@ int netcam_start(struct context *cnt){
     } else if ((url.service) && (!strcmp(url.service, "ftp"))) {
         MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO,_("now calling netcam_setup_ftp"));
         retval = netcam_setup_ftp(netcam, &url);
-    } else if ((url.service) && (!strcmp(url.service, "file"))) {
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO,_("now calling netcam_setup_file()"));
-        retval = netcam_setup_file(netcam, &url);
-    } else if ((url.service) && (!strcmp(url.service, "mjpg"))) {
-        retval = netcam_setup_mjpg(netcam, &url);
     } else {
         MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
-            ,_("Invalid netcam service '%s' - must be http, ftp, mjpg, mjpeg, v4l2 or file.")
+            ,_("Invalid netcam service '%s' - must be http or ftp")
             , url.service);
         retval = -1;
     }

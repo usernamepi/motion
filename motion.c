@@ -358,15 +358,16 @@ static void sig_handler(int signo)
         /*FALLTHROUGH*/
     case SIGTERM:
         /*
-         * Somebody wants us to quit! We should better finish the actual
+         * Somebody wants us to quit! We should finish the actual
          * movie and end up!
          */
+
         if (cnt_list) {
             i = -1;
             while (cnt_list[++i]) {
+                cnt_list[i]->webcontrol_finish = 1;
                 cnt_list[i]->makemovie = 1;
                 cnt_list[i]->finish = 1;
-                cnt_list[i]->webcontrol_finish = 1;
                 /*
                  * Don't restart thread when it ends,
                  * all threads restarts if global restart is set
@@ -552,7 +553,7 @@ static void motion_detected(struct context *cnt, int dev, struct image_data *img
     }
 
     /* Limit framerate */
-    if (img->shot < conf->frame_limit) {
+    if (img->shot < conf->framerate) {
         /*
          * If config option stream_motion is enabled, send the latest motion detected image
          * to the stream but only if it is not the first shot within a second. This is to
@@ -566,7 +567,7 @@ static void motion_detected(struct context *cnt, int dev, struct image_data *img
          * Save motion jpeg, if configured
          * Output the image_out (motion) picture.
          */
-        if (conf->motion_img)
+        if (conf->picture_output_motion)
             event(cnt, EVENT_IMAGEM_DETECTED, NULL, NULL, NULL, &img->timestamp_tv);
     }
 
@@ -607,7 +608,7 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
         /* Set inte global context that we are working with this image */
         cnt->current_image = &cnt->imgs.image_ring[cnt->imgs.image_ring_out];
 
-        if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].shot < cnt->conf.frame_limit) {
+        if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].shot < cnt->conf.framerate) {
             if (cnt->log_level >= DBG) {
                 char tmp[32];
                 const char *t;
@@ -644,10 +645,10 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
              * many duplicated frames, say 10 fps, 5 duplicated, the video will
              * look like it is frozen every second for half a second.
              */
-            if (!cnt->conf.ffmpeg_duplicate_frames) {
+            if (!cnt->conf.movie_duplicate_frames) {
                 /* don't duplicate frames */
             } else if ((cnt->imgs.image_ring[cnt->imgs.image_ring_out].shot == 0) &&
-                (cnt->ffmpeg_output || (cnt->conf.useextpipe && cnt->extpipe))) {
+                (cnt->ffmpeg_output || (cnt->conf.movie_extpipe_use && cnt->extpipe))) {
                 /*
                  * movie_last_shoot is -1 when file is created,
                  * we don't know how many frames there is in first sec
@@ -693,13 +694,13 @@ static void process_image_ring(struct context *cnt, unsigned int max_images)
 
         /* Store it as a preview image, only if it has motion */
         if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].flags & IMAGE_MOTION) {
-            /* Check for most significant preview-shot when output_pictures=best */
+            /* Check for most significant preview-shot when picture_output=best */
             if (cnt->new_img & NEWIMG_BEST) {
                 if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].diffs > cnt->imgs.preview_image.diffs) {
                     image_save_as_preview(cnt, &cnt->imgs.image_ring[cnt->imgs.image_ring_out]);
                 }
             }
-            /* Check for most significant preview-shot when output_pictures=center */
+            /* Check for most significant preview-shot when picture_output=center */
             if (cnt->new_img & NEWIMG_CENTER) {
                 if (cnt->imgs.image_ring[cnt->imgs.image_ring_out].cent_dist < cnt->imgs.preview_image.cent_dist) {
                     image_save_as_preview(cnt, &cnt->imgs.image_ring[cnt->imgs.image_ring_out]);
@@ -739,6 +740,7 @@ static int init_camera_type(struct context *cnt){
     if (cnt->conf.netcam_url) {
         if ((strncmp(cnt->conf.netcam_url,"mjpeg",5) == 0) ||
             (strncmp(cnt->conf.netcam_url,"v4l2" ,4) == 0) ||
+            (strncmp(cnt->conf.netcam_url,"file" ,4) == 0) ||
             (strncmp(cnt->conf.netcam_url,"rtmp" ,4) == 0) ||
             (strncmp(cnt->conf.netcam_url,"rtsp" ,4) == 0)) {
             cnt->camera_type = CAMERA_TYPE_RTSP;
@@ -904,6 +906,65 @@ static void init_text_scale(struct context *cnt){
 
 }
 
+static void mot_stream_init(struct context *cnt){
+
+    /* The image buffers are allocated in event_stream_put if needed*/
+    pthread_mutex_init(&cnt->mutex_stream, NULL);
+
+    cnt->imgs.substream_image = NULL;
+
+    cnt->stream_norm.jpeg_size = 0;
+    cnt->stream_norm.jpeg_data = NULL;
+    cnt->stream_norm.cnct_count = 0;
+
+    cnt->stream_sub.jpeg_size = 0;
+    cnt->stream_sub.jpeg_data = NULL;
+    cnt->stream_sub.cnct_count = 0;
+
+    cnt->stream_motion.jpeg_size = 0;
+    cnt->stream_motion.jpeg_data = NULL;
+    cnt->stream_motion.cnct_count = 0;
+
+    cnt->stream_source.jpeg_size = 0;
+    cnt->stream_source.jpeg_data = NULL;
+    cnt->stream_source.cnct_count = 0;
+
+}
+
+static void mot_stream_deinit(struct context *cnt){
+
+    /* Need to check whether buffers were allocated since init
+     * function defers the allocations to event_stream_put
+    */
+
+    pthread_mutex_destroy(&cnt->mutex_stream);
+
+    if (cnt->imgs.substream_image != NULL){
+        free(cnt->imgs.substream_image);
+        cnt->imgs.substream_image = NULL;
+    }
+
+    if (cnt->stream_norm.jpeg_data != NULL){
+        free(cnt->stream_norm.jpeg_data);
+        cnt->stream_norm.jpeg_data = NULL;
+    }
+
+    if (cnt->stream_sub.jpeg_data != NULL){
+        free(cnt->stream_sub.jpeg_data);
+        cnt->stream_sub.jpeg_data = NULL;
+    }
+
+    if (cnt->stream_motion.jpeg_data != NULL){
+        free(cnt->stream_motion.jpeg_data);
+        cnt->stream_motion.jpeg_data = NULL;
+    }
+
+    if (cnt->stream_source.jpeg_data != NULL){
+        free(cnt->stream_source.jpeg_data);
+        cnt->stream_source.jpeg_data = NULL;
+    }
+
+}
 
 /**
  * motion_init
@@ -957,15 +1018,15 @@ static int motion_init(struct context *cnt)
         ,_("Camera %d started: motion detection %s"),
         cnt->camera_id, cnt->pause ? _("Disabled"):_("Enabled"));
 
-    if (!cnt->conf.filepath)
-        cnt->conf.filepath = mystrdup(".");
+    if (!cnt->conf.target_dir)
+        cnt->conf.target_dir = mystrdup(".");
 
     if (init_camera_type(cnt) != 0 ) return -3;
 
     if ((cnt->camera_type != CAMERA_TYPE_RTSP) &&
-        (cnt->conf.ffmpeg_passthrough)) {
+        (cnt->conf.movie_passthrough)) {
         MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO,_("Pass-through processing disabled."));
-        cnt->conf.ffmpeg_passthrough = 0;
+        cnt->conf.movie_passthrough = 0;
     }
 
     if ((cnt->conf.height == 0) || (cnt->conf.width == 0)) {
@@ -1057,8 +1118,7 @@ static int motion_init(struct context *cnt)
         cnt->imgs.preview_image.image_high = mymalloc(cnt->imgs.size_high);
     }
 
-    pthread_mutex_init(&cnt->mutex_stream, NULL);
-    cnt->imgs.image_stream = mymalloc(cnt->imgs.size_norm);
+    mot_stream_init(cnt);
 
     /* Set output picture type */
     if (!strcmp(cnt->conf.picture_type, "ppm"))
@@ -1112,12 +1172,12 @@ static int motion_init(struct context *cnt)
 
 #if defined(HAVE_V4L2) && !defined(__FreeBSD__)
     /* open video loopback devices if enabled */
-    if (cnt->conf.vidpipe) {
+    if (cnt->conf.video_pipe) {
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
             ,_("Opening video loopback device for normal pictures"));
 
         /* vid_startpipe should get the output dimensions */
-        cnt->pipe = vlp_startpipe(cnt->conf.vidpipe, cnt->imgs.width, cnt->imgs.height);
+        cnt->pipe = vlp_startpipe(cnt->conf.video_pipe, cnt->imgs.width, cnt->imgs.height);
 
         if (cnt->pipe < 0) {
             MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
@@ -1126,12 +1186,12 @@ static int motion_init(struct context *cnt)
         }
     }
 
-    if (cnt->conf.motionvidpipe) {
+    if (cnt->conf.video_pipe_motion) {
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
             ,_("Opening video loopback device for motion pictures"));
 
         /* vid_startpipe should get the output dimensions */
-        cnt->mpipe = vlp_startpipe(cnt->conf.motionvidpipe, cnt->imgs.width, cnt->imgs.height);
+        cnt->mpipe = vlp_startpipe(cnt->conf.video_pipe_motion, cnt->imgs.width, cnt->imgs.height);
 
         if (cnt->mpipe < 0) {
             MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
@@ -1226,7 +1286,7 @@ static int motion_init(struct context *cnt)
 
         /* Set the sql mask file according to the SQL config options*/
 
-        cnt->sql_mask = cnt->conf.sql_log_image * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
+        cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
                         cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
                         cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
                         cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
@@ -1275,19 +1335,19 @@ static int motion_init(struct context *cnt)
     memset(cnt->imgs.smartmask_buffer, 0, cnt->imgs.motionsize * sizeof(*cnt->imgs.smartmask_buffer));
 
     /* Set noise level */
-    cnt->noise = cnt->conf.noise;
+    cnt->noise = cnt->conf.noise_level;
 
     /* Set threshold value */
-    cnt->threshold = cnt->conf.max_changes;
+    cnt->threshold = cnt->conf.threshold;
 
-    if (cnt->conf.stream_preview_method == 3){
+    if (cnt->conf.stream_preview_method == 99){
         /* This is the depreciated Stop stream process */
 
         /* Initialize stream server if stream port is specified to not 0 */
 
         if (cnt->conf.stream_port) {
             if (stream_init (&(cnt->stream), cnt->conf.stream_port, cnt->conf.stream_localhost,
-                cnt->conf.ipv6_enabled, cnt->conf.stream_cors_header) == -1) {
+                cnt->conf.webcontrol_ipv6, cnt->conf.stream_cors_header) == -1) {
                 MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
                     ,_("Problem enabling motion-stream server in port %d")
                     ,cnt->conf.stream_port);
@@ -1306,7 +1366,7 @@ static int motion_init(struct context *cnt)
         if (cnt->conf.substream_port){
             if ((cnt->conf.width / 2) % 8 == 0  && (cnt->conf.height / 2) % 8 == 0){
                 if (stream_init (&(cnt->substream), cnt->conf.substream_port, cnt->conf.stream_localhost,
-                    cnt->conf.ipv6_enabled, cnt->conf.stream_cors_header) == -1) {
+                    cnt->conf.webcontrol_ipv6, cnt->conf.stream_cors_header) == -1) {
                     MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
                         ,_("Problem enabling motion-substream server in port %d")
                         ,cnt->conf.substream_port);
@@ -1331,13 +1391,13 @@ static int motion_init(struct context *cnt)
     cnt->moved = 8;
 
     /* Work out expected frame rate based on config setting */
-    if (cnt->conf.frame_limit < 2)
-        cnt->conf.frame_limit = 2;
+    if (cnt->conf.framerate < 2)
+        cnt->conf.framerate = 2;
 
     /* 2 sec startup delay so FPS is calculated correct */
-    cnt->startup_frames = (cnt->conf.frame_limit * 2) + cnt->conf.pre_capture + cnt->conf.minimum_motion_frames;
+    cnt->startup_frames = (cnt->conf.framerate * 2) + cnt->conf.pre_capture + cnt->conf.minimum_motion_frames;
 
-    cnt->required_frame_time = 1000000L / cnt->conf.frame_limit;
+    cnt->required_frame_time = 1000000L / cnt->conf.framerate;
 
     cnt->frame_delay = cnt->required_frame_time;
 
@@ -1346,7 +1406,7 @@ static int motion_init(struct context *cnt)
      * if there is any problem on the allocation, mymalloc does not return.
      */
     cnt->rolling_average_data = NULL;
-    cnt->rolling_average_limit = 10 * cnt->conf.frame_limit;
+    cnt->rolling_average_limit = 10 * cnt->conf.framerate;
     cnt->rolling_average_data = mymalloc(sizeof(cnt->rolling_average_data) * cnt->rolling_average_limit);
 
     /* Preset history buffer with expected frame rate */
@@ -1422,7 +1482,7 @@ static int motion_init(struct context *cnt)
  */
 static void motion_cleanup(struct context *cnt) {
 
-    if (cnt->conf.stream_preview_method == 3){
+    if (cnt->conf.stream_preview_method == 99){
         /* This is the depreciated Stop stream process */
         if ((cnt->conf.stream_port) && (cnt->stream.socket != -1))
             stream_stop(&cnt->stream);
@@ -1434,9 +1494,7 @@ static void motion_cleanup(struct context *cnt) {
     event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, NULL);
     event(cnt, EVENT_ENDMOTION, NULL, NULL, NULL, NULL);
 
-    pthread_mutex_destroy(&cnt->mutex_stream);
-    if (cnt->imgs.image_stream) free(cnt->imgs.image_stream);
-    cnt->imgs.image_stream = NULL;
+    mot_stream_deinit(cnt);
 
     if (cnt->video_dev >= 0) {
         MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, _("Calling vid_close() from motion_cleanup"));
@@ -1877,7 +1935,7 @@ static int mlp_capture(struct context *cnt){
         cnt->connectionlosttime = 0;
 
         /* If all is well reset missing_frame_counter */
-        if (cnt->missing_frame_counter >= MISSING_FRAMES_TIMEOUT * cnt->conf.frame_limit) {
+        if (cnt->missing_frame_counter >= MISSING_FRAMES_TIMEOUT * cnt->conf.framerate) {
             /* If we previously logged starting a grey image, now log video re-start */
             MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, _("Video signal re-acquired"));
             // event for re-acquired video signal can be called here
@@ -1921,7 +1979,7 @@ static int mlp_capture(struct context *cnt){
     *        flag on lost_connection if :
     *               vid_return_code == NETCAM_RESTART_ERROR
     *        cnt->video_dev < 0
-    *        cnt->missing_frame_counter > (MISSING_FRAMES_TIMEOUT * cnt->conf.frame_limit)
+    *        cnt->missing_frame_counter > (MISSING_FRAMES_TIMEOUT * cnt->conf.framerate)
     */
     } else {
 
@@ -1965,7 +2023,7 @@ static int mlp_capture(struct context *cnt){
         ++cnt->missing_frame_counter;
 
         if (cnt->video_dev >= 0 &&
-            cnt->missing_frame_counter < (MISSING_FRAMES_TIMEOUT * cnt->conf.frame_limit)) {
+            cnt->missing_frame_counter < (MISSING_FRAMES_TIMEOUT * cnt->conf.framerate)) {
             memcpy(cnt->current_image->image_norm, cnt->imgs.image_virgin.image_norm, cnt->imgs.size_norm);
         } else {
             cnt->lost_connection = 1;
@@ -1983,7 +2041,7 @@ static int mlp_capture(struct context *cnt){
                       10, 20 * cnt->text_scale, tmpout, cnt->text_scale);
 
             /* Write error message only once */
-            if (cnt->missing_frame_counter == MISSING_FRAMES_TIMEOUT * cnt->conf.frame_limit) {
+            if (cnt->missing_frame_counter == MISSING_FRAMES_TIMEOUT * cnt->conf.framerate) {
                 MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
                     ,_("Video signal lost - Adding grey image"));
                 // Event for lost video signal can be called from here
@@ -1995,7 +2053,7 @@ static int mlp_capture(struct context *cnt){
              * Only try this when a device is open
              */
             if ((cnt->video_dev > 0) &&
-                (cnt->missing_frame_counter == (MISSING_FRAMES_TIMEOUT * 4) * cnt->conf.frame_limit)) {
+                (cnt->missing_frame_counter == (MISSING_FRAMES_TIMEOUT * 4) * cnt->conf.framerate)) {
                 MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
                     ,_("Video signal still lost - "
                     "Trying to close video device"));
@@ -2066,7 +2124,7 @@ static void mlp_detection(struct context *cnt){
              * We do not suspend motion detection like we did for lightswitch
              * because with Round Robin this is controlled by roundrobin_skip.
              */
-            if (cnt->conf.switchfilter && cnt->current_image->diffs > cnt->threshold) {
+            if (cnt->conf.roundrobin_switchfilter && cnt->current_image->diffs > cnt->threshold) {
                 cnt->current_image->diffs = alg_switchfilter(cnt, cnt->current_image->diffs,
                                                              cnt->current_image->image_norm);
 
@@ -2143,7 +2201,7 @@ static void mlp_tuning(struct context *cnt){
      */
     if (cnt->process_thisframe) {
         if (!cnt->conf.noise_tune)
-            cnt->noise = cnt->conf.noise;
+            cnt->noise = cnt->conf.noise_level;
 
         /*
          * threshold tuning if enabled
@@ -2153,7 +2211,7 @@ static void mlp_tuning(struct context *cnt){
         if (cnt->conf.threshold_tune)
             alg_threshold_tune(cnt, cnt->current_image->diffs, cnt->detecting_motion);
         else
-            cnt->threshold = cnt->conf.max_changes;
+            cnt->threshold = cnt->conf.threshold;
 
         /*
          * If motion is detected (cnt->current_image->diffs > cnt->threshold) and before we add text to the pictures
@@ -2207,18 +2265,19 @@ static void mlp_overlay(struct context *cnt){
      */
 
     /* Smartmask overlay */
-    if (cnt->smartmask_speed && (cnt->conf.motion_img || cnt->conf.ffmpeg_output_debug ||
-        cnt->conf.setup_mode))
+    if (cnt->smartmask_speed &&
+        (cnt->conf.picture_output_motion || cnt->conf.movie_output_motion ||
+         cnt->conf.setup_mode || (cnt->stream_motion.cnct_count > 0)))
         overlay_smartmask(cnt, cnt->imgs.img_motion.image_norm);
 
     /* Largest labels overlay */
-    if (cnt->imgs.largest_label && (cnt->conf.motion_img || cnt->conf.ffmpeg_output_debug ||
-        cnt->conf.setup_mode))
+    if (cnt->imgs.largest_label && (cnt->conf.picture_output_motion || cnt->conf.movie_output_motion ||
+        cnt->conf.setup_mode || (cnt->stream_motion.cnct_count > 0)))
         overlay_largest_label(cnt, cnt->imgs.img_motion.image_norm);
 
     /* Fixed mask overlay */
-    if (cnt->imgs.mask && (cnt->conf.motion_img || cnt->conf.ffmpeg_output_debug ||
-        cnt->conf.setup_mode))
+    if (cnt->imgs.mask && (cnt->conf.picture_output_motion || cnt->conf.movie_output_motion ||
+        cnt->conf.setup_mode || (cnt->stream_motion.cnct_count > 0)))
         overlay_fixed_mask(cnt, cnt->imgs.img_motion.image_norm);
 
     /* Add changed pixels in upper right corner of the pictures */
@@ -2236,7 +2295,7 @@ static void mlp_overlay(struct context *cnt){
      * Add changed pixels to motion-images (for stream) in setup_mode
      * and always overlay smartmask (not only when motion is detected)
      */
-    if (cnt->conf.setup_mode) {
+    if (cnt->conf.setup_mode || (cnt->stream_motion.cnct_count > 0)) {
         sprintf(tmp, "D:%5d L:%3d N:%3d", cnt->current_image->diffs,
                 cnt->current_image->total_labels, cnt->noise);
         draw_text(cnt->imgs.img_motion.image_norm, cnt->imgs.width, cnt->imgs.height,
@@ -2372,10 +2431,10 @@ static void mlp_actions(struct context *cnt){
 
     /*
      * Is the movie too long? Then make movies
-     * First test for max_movie_time
+     * First test for movie_max_time
      */
-    if ((cnt->conf.max_movie_time && cnt->event_nr == cnt->prev_event) &&
-        (cnt->currenttime - cnt->eventtime >= cnt->conf.max_movie_time))
+    if ((cnt->conf.movie_max_time && cnt->event_nr == cnt->prev_event) &&
+        (cnt->currenttime - cnt->eventtime >= cnt->conf.movie_max_time))
         cnt->makemovie = 1;
 
     /*
@@ -2600,13 +2659,13 @@ static void mlp_parmsupdate(struct context *cnt){
 
         init_text_scale(cnt);  /* Initialize and validate text_scale */
 
-        if (strcasecmp(cnt->conf.output_pictures, "on") == 0)
+        if (strcasecmp(cnt->conf.picture_output, "on") == 0)
             cnt->new_img = NEWIMG_ON;
-        else if (strcasecmp(cnt->conf.output_pictures, "first") == 0)
+        else if (strcasecmp(cnt->conf.picture_output, "first") == 0)
             cnt->new_img = NEWIMG_FIRST;
-        else if (strcasecmp(cnt->conf.output_pictures, "best") == 0)
+        else if (strcasecmp(cnt->conf.picture_output, "best") == 0)
             cnt->new_img = NEWIMG_BEST;
-        else if (strcasecmp(cnt->conf.output_pictures, "center") == 0)
+        else if (strcasecmp(cnt->conf.picture_output, "center") == 0)
             cnt->new_img = NEWIMG_CENTER;
         else
             cnt->new_img = NEWIMG_OFF;
@@ -2657,7 +2716,7 @@ static void mlp_parmsupdate(struct context *cnt){
          * We update it for every frame in case the config was updated
          * via remote control.
          */
-        cnt->sql_mask = cnt->conf.sql_log_image * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
+        cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
                         cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
                         cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
                         cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
@@ -2682,8 +2741,8 @@ static void mlp_frametiming(struct context *cnt){
      * Work out expected frame rate based on config setting which may
      * have changed from http-control
      */
-    if (cnt->conf.frame_limit)
-        cnt->required_frame_time = 1000000L / cnt->conf.frame_limit;
+    if (cnt->conf.framerate)
+        cnt->required_frame_time = 1000000L / cnt->conf.framerate;
     else
         cnt->required_frame_time = 0;
 
@@ -3104,10 +3163,10 @@ static void motion_startup(int daemonize, int argc, char *argv[])
 
     MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, "Motion %s Started",VERSION);
 
-    if ((cnt_list[0]->conf.log_type_str == NULL) ||
-        !(cnt_list[0]->log_type = get_log_type(cnt_list[0]->conf.log_type_str))) {
+    if ((cnt_list[0]->conf.log_type == NULL) ||
+        !(cnt_list[0]->log_type = get_log_type(cnt_list[0]->conf.log_type))) {
         cnt_list[0]->log_type = TYPE_DEFAULT;
-        cnt_list[0]->conf.log_type_str = mystrcpy(cnt_list[0]->conf.log_type_str, "ALL");
+        cnt_list[0]->conf.log_type = mystrcpy(cnt_list[0]->conf.log_type, "ALL");
         MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO,_("Using default log type (%s)"),
                    get_log_type_str(cnt_list[0]->log_type));
     }
@@ -3961,12 +4020,12 @@ void util_threadname_get(char *threadname){
 }
 int util_check_passthrough(struct context *cnt){
 #if (HAVE_FFMPEG && LIBAVFORMAT_VERSION_MAJOR < 55)
-    if (cnt->conf.ffmpeg_passthrough)
+    if (cnt->conf.movie_passthrough)
         MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
             ,_("FFMPEG version too old. Disabling pass-through processing."));
     return 0;
 #else
-    if (cnt->conf.ffmpeg_passthrough){
+    if (cnt->conf.movie_passthrough){
         MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
             ,_("pass-through is enabled but is still experimental."));
         return 1;

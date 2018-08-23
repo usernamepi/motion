@@ -263,9 +263,9 @@ static unsigned prepare_exif(unsigned char **exif,
     // use as much of it as is indicated by conf->frame_limit
     subtime = NULL;
 
-    if (cnt->conf.exif_text) {
+    if (cnt->conf.picture_exif) {
         description = malloc(PATH_MAX);
-        mystrftime(cnt, description, PATH_MAX-1, cnt->conf.exif_text, &tv1, NULL, 0);
+        mystrftime(cnt, description, PATH_MAX-1, cnt->conf.picture_exif, &tv1, NULL, 0);
     } else {
         description = NULL;
     }
@@ -885,14 +885,14 @@ static void put_ppm_bgr24_file(FILE *picture, unsigned char *image, int width, i
             rgb[2] = r;
 
             l++;
-            if (x & 1) {
+            if (x%2 != 0) {
                 u++;
                 v++;
             }
             /* ppm is rgb not bgr */
             fwrite(rgb, 1, 3, picture);
         }
-        if (y & 1) {
+        if (y%2 == 0) {
             u -= width / 2;
             v -= width / 2;
         }
@@ -1124,7 +1124,7 @@ void put_picture(struct context *cnt, char *file, unsigned char *image, int ftyp
         }
     }
 
-    put_picture_fd(cnt, picture, image, cnt->conf.quality, ftype);
+    put_picture_fd(cnt, picture, image, cnt->conf.picture_quality, ftype);
 
     myfclose(picture);
 }
