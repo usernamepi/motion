@@ -376,6 +376,8 @@ struct context {
     struct config conf;
     struct images imgs;
     struct trackoptions track;
+    int                 track_posx;
+    int                 track_posy;
 
     enum CAMERA_TYPE      camera_type;
     struct netcam_context *netcam;
@@ -403,7 +405,8 @@ struct context {
 
     /* Commands to the motion thread */
     volatile unsigned int snapshot;    /* Make a snapshot */
-    volatile unsigned int makemovie;   /* End a movie */
+    volatile unsigned int event_stop;  /* Boolean for whether to stop a event */
+    volatile unsigned int event_user;  /* Boolean for whether to user triggered an event */
     volatile unsigned int finish;      /* End the thread */
     volatile unsigned int restart;     /* Restart the thread when it ends */
     /* Is the motion thread running */
@@ -452,10 +455,7 @@ struct context {
 
     char hostname[PATH_MAX];
 
-
-#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
     int sql_mask;
-#endif
 
 #ifdef HAVE_SQLITE3
     sqlite3 *database_sqlite3;
@@ -463,7 +463,6 @@ struct context {
 
 #ifdef HAVE_MYSQL
     MYSQL *database;
-
 #endif
 
 #ifdef HAVE_PGSQL

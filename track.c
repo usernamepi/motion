@@ -39,8 +39,6 @@ struct trackoptions track_template = {
 };
 
 
-
-
 /* Add your own center and move functions here: */
 
 static unsigned int servo_position(struct context *cnt, unsigned int motor);
@@ -71,6 +69,8 @@ static unsigned int generic_move(struct context *cnt, enum track_action action, 
 unsigned int track_center(struct context *cnt, int dev ATTRIBUTE_UNUSED,
                           unsigned int manual, int xoff, int yoff)
 {
+    struct coord cent;
+
     if (!manual && !cnt->track.active)
         return 0;
 
@@ -94,10 +94,13 @@ unsigned int track_center(struct context *cnt, int dev ATTRIBUTE_UNUSED,
     else if (cnt->track.type == TRACK_TYPE_IOMOJO)
         return iomojo_center(cnt, xoff, yoff);
     else if (cnt->track.type == TRACK_TYPE_GENERIC) {
-        if (cnt->track.generic_move)
-            return generic_move(cnt, TRACK_CENTER, manual, xoff, yoff, NULL, NULL);
-        else
+        if (cnt->track.generic_move){
+            cent.x = -cnt->track_posx;
+            cent.y = -cnt->track_posy;
+            return generic_move(cnt, TRACK_CENTER, manual,0 ,0 ,&cent , NULL);
+        } else {
             return 10; // FIX ME. I chose to return something reasonable.
+        }
     }
 
     MOTION_LOG(ERR, TYPE_TRACK, SHOW_ERRNO
@@ -1300,6 +1303,12 @@ static unsigned int uvc_move(struct context *cnt, int dev, struct coord *cent,
 static unsigned int generic_move(struct context *cnt, enum track_action action, unsigned int manual,
                                  int xoff, int yoff, struct coord *cent, struct images *imgs)
 {
+    char fmtcmd[PATH_MAX];
+    cnt->track_posx += cent->x;
+    cnt->track_posy += cent->y;
+
+    mystrftime(cnt, fmtcmd, sizeof(fmtcmd), cnt->track.generic_move, &cnt->current_image->timestamp_tv, NULL, 0);
+
     if (!fork()) {
         int i;
         char buf[12];
@@ -1342,7 +1351,7 @@ static unsigned int generic_move(struct context *cnt, enum track_action action, 
         for (i = getdtablesize() - 1; i > 2; i--)
             close(i);
 
-        execl("/bin/sh", "sh", "-c", cnt->track.generic_move, " &", NULL);
+        execl("/bin/sh", "sh", "-c", fmtcmd, " &", NULL);
 
         /* if above function succeeds the program never reach here */
         MOTION_LOG(ALR, TYPE_EVENTS, SHOW_ERRNO
@@ -1354,7 +1363,7 @@ static unsigned int generic_move(struct context *cnt, enum track_action action, 
 
     MOTION_LOG(DBG, TYPE_EVENTS, NO_ERRNO
         ,_("Executing external command '%s'")
-        , cnt->track.generic_move);
+        , fmtcmd);
 
     return cnt->track.move_wait;
 }

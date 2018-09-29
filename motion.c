@@ -265,6 +265,7 @@ static void context_init(struct context *cnt)
     cnt->lastrate = 25;
 
     memcpy(&cnt->track, &track_template, sizeof(struct trackoptions));
+
     cnt->pipe = -1;
     cnt->mpipe = -1;
 
@@ -335,14 +336,12 @@ static void sig_handler(int signo)
         }
         break;
     case SIGUSR1:
-        /*
-         * Ouch! We have been hit from the outside! Someone wants us to
-         * make a movie!
-         */
+        /* Trigger the end of a event */
         if (cnt_list) {
             i = -1;
-            while (cnt_list[++i])
-                cnt_list[i]->makemovie = 1;
+            while (cnt_list[++i]){
+                cnt_list[i]->event_stop = TRUE;
+            }
         }
         break;
     case SIGHUP:
@@ -366,7 +365,7 @@ static void sig_handler(int signo)
             i = -1;
             while (cnt_list[++i]) {
                 cnt_list[i]->webcontrol_finish = 1;
-                cnt_list[i]->makemovie = 1;
+                cnt_list[i]->event_stop = TRUE;
                 cnt_list[i]->finish = 1;
                 /*
                  * Don't restart thread when it ends,
@@ -730,12 +729,12 @@ static int init_camera_type(struct context *cnt){
 
     cnt->camera_type = CAMERA_TYPE_UNKNOWN;
 
-#ifdef HAVE_MMAL
-    if (cnt->conf.mmalcam_name) {
-        cnt->camera_type = CAMERA_TYPE_MMAL;
-        return 0;
-    }
-#endif // HAVE_MMAL
+    #ifdef HAVE_MMAL
+        if (cnt->conf.mmalcam_name) {
+            cnt->camera_type = CAMERA_TYPE_MMAL;
+            return 0;
+        }
+    #endif // HAVE_MMAL
 
     if (cnt->conf.netcam_url) {
         if ((strncmp(cnt->conf.netcam_url,"mjpeg",5) == 0) ||
@@ -750,19 +749,19 @@ static int init_camera_type(struct context *cnt){
         return 0;
     }
 
-#ifdef HAVE_BKTR
-    if (strncmp(cnt->conf.video_device,"/dev/bktr",9) == 0) {
-        cnt->camera_type = CAMERA_TYPE_BKTR;
-        return 0;
-    }
-#endif // HAVE_BKTR
+    #ifdef HAVE_BKTR
+        if (strncmp(cnt->conf.video_device,"/dev/bktr",9) == 0) {
+            cnt->camera_type = CAMERA_TYPE_BKTR;
+            return 0;
+        }
+    #endif // HAVE_BKTR
 
-#ifdef HAVE_V4L2
-    if (cnt->conf.video_device) {
-        cnt->camera_type = CAMERA_TYPE_V4L2;
-        return 0;
-    }
-#endif // HAVE_V4L2
+    #ifdef HAVE_V4L2
+        if (cnt->conf.video_device) {
+            cnt->camera_type = CAMERA_TYPE_V4L2;
+            return 0;
+        }
+    #endif // HAVE_V4L2
 
 
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
@@ -963,7 +962,228 @@ static void mot_stream_deinit(struct context *cnt){
         free(cnt->stream_source.jpeg_data);
         cnt->stream_source.jpeg_data = NULL;
     }
+}
 
+/* TODO: dbse functions are to be moved to separate module in future change*/
+static void dbse_global_deinit(void){
+    MOTION_LOG(DBG, TYPE_ALL, NO_ERRNO, _("Closing MYSQL"));
+    #ifdef HAVE_MYSQL
+        mysql_library_end();
+    #endif /* HAVE_MYSQL */
+}
+
+static void dbse_global_init(void){
+
+    MOTION_LOG(DBG, TYPE_DB, NO_ERRNO,_("Initializing database"));
+   /* Initialize all the database items */
+    #ifdef HAVE_MYSQL
+        if (mysql_library_init(0, NULL, NULL)) {
+            fprintf(stderr, "could not initialize MySQL library\n");
+            exit(1);
+        }
+    #endif /* HAVE_MYSQL */
+
+    #ifdef HAVE_SQLITE3
+        int indx;
+        /* database_sqlite3 == NULL if not changed causes each thread to create their own
+        * sqlite3 connection this will only happens when using a non-threaded sqlite version */
+        cnt_list[0]->database_sqlite3=NULL;
+        if (cnt_list[0]->conf.database_type && ((!strcmp(cnt_list[0]->conf.database_type, "sqlite3")) && cnt_list[0]->conf.database_dbname)) {
+            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
+                ,_("SQLite3 Database filename %s")
+                ,cnt_list[0]->conf.database_dbname);
+
+            int thread_safe = sqlite3_threadsafe();
+            if (thread_safe > 0) {
+                MOTION_LOG(NTC, TYPE_DB, NO_ERRNO, _("SQLite3 is threadsafe"));
+                MOTION_LOG(NTC, TYPE_DB, NO_ERRNO, _("SQLite3 serialized %s")
+                    ,(sqlite3_config(SQLITE_CONFIG_SERIALIZED)?_("FAILED"):_("SUCCESS")));
+                if (sqlite3_open( cnt_list[0]->conf.database_dbname, &cnt_list[0]->database_sqlite3) != SQLITE_OK) {
+                    MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                        ,_("Can't open database %s : %s")
+                        ,cnt_list[0]->conf.database_dbname
+                        ,sqlite3_errmsg( cnt_list[0]->database_sqlite3));
+                    sqlite3_close( cnt_list[0]->database_sqlite3);
+                    exit(1);
+                }
+                MOTION_LOG(NTC, TYPE_DB, NO_ERRNO,_("database_busy_timeout %d msec"),
+                        cnt_list[0]->conf.database_busy_timeout);
+                if (sqlite3_busy_timeout( cnt_list[0]->database_sqlite3,  cnt_list[0]->conf.database_busy_timeout) != SQLITE_OK)
+                    MOTION_LOG(ERR, TYPE_DB, NO_ERRNO,_("database_busy_timeout failed %s")
+                        ,sqlite3_errmsg( cnt_list[0]->database_sqlite3));
+            }
+        }
+        /* Cascade to all threads */
+        indx = 1;
+        while (cnt_list[indx] != NULL) {
+            cnt_list[indx]->database_sqlite3 = cnt_list[0]->database_sqlite3;
+            indx++;
+        }
+
+    #endif /* HAVE_SQLITE3 */
+
+}
+
+static int dbse_init_mysql(struct context *cnt){
+
+    #ifdef HAVE_MYSQL
+        if ((!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
+            // close database to be sure that we are not leaking
+            mysql_close(cnt->database);
+            cnt->database_event_id = 0;
+
+            cnt->database = mymalloc(sizeof(MYSQL));
+            mysql_init(cnt->database);
+
+            if (!mysql_real_connect(cnt->database, cnt->conf.database_host, cnt->conf.database_user,
+                cnt->conf.database_password, cnt->conf.database_dbname, 0, NULL, 0)) {
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                    ,_("Cannot connect to MySQL database %s on host %s with user %s")
+                    ,cnt->conf.database_dbname, cnt->conf.database_host
+                    ,cnt->conf.database_user);
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                    ,_("MySQL error was %s"), mysql_error(cnt->database));
+                return -2;
+            }
+            #if (defined(MYSQL_VERSION_ID)) && (MYSQL_VERSION_ID > 50012)
+                my_bool my_true = TRUE;
+                mysql_options(cnt->database, MYSQL_OPT_RECONNECT, &my_true);
+            #endif
+        }
+    #else
+        (void)cnt;  /* Avoid compiler warnings */
+    #endif /* HAVE_MYSQL */
+
+    return 0;
+
+}
+
+static int dbse_init_sqlite3(struct context *cnt){
+    #ifdef HAVE_SQLITE3
+        if (cnt_list[0]->database_sqlite3 != 0) {
+            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO,_("SQLite3 using shared handle"));
+            cnt->database_sqlite3 = cnt_list[0]->database_sqlite3;
+
+        } else if ((!strcmp(cnt->conf.database_type, "sqlite3")) && cnt->conf.database_dbname) {
+            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
+                ,_("SQLite3 Database filename %s"), cnt->conf.database_dbname);
+            if (sqlite3_open(cnt->conf.database_dbname, &cnt->database_sqlite3) != SQLITE_OK) {
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                    ,_("Can't open database %s : %s")
+                    ,cnt->conf.database_dbname, sqlite3_errmsg(cnt->database_sqlite3));
+                sqlite3_close(cnt->database_sqlite3);
+                return -2;
+            }
+            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
+                ,_("database_busy_timeout %d msec"), cnt->conf.database_busy_timeout);
+            if (sqlite3_busy_timeout(cnt->database_sqlite3, cnt->conf.database_busy_timeout) != SQLITE_OK)
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                    ,_("database_busy_timeout failed %s")
+                    ,sqlite3_errmsg(cnt->database_sqlite3));
+        }
+    #else
+        (void)cnt;  /* Avoid compiler warnings */
+    #endif /* HAVE_SQLITE3 */
+
+    return 0;
+
+}
+
+static int dbse_init_pgsql(struct context *cnt){
+    #ifdef HAVE_PGSQL
+        if ((!strcmp(cnt->conf.database_type, "postgresql")) && (cnt->conf.database_dbname)) {
+            char connstring[255];
+
+            /*
+             * Create the connection string.
+             * Quote the values so we can have null values (blank)
+             */
+            snprintf(connstring, 255,
+                     "dbname='%s' host='%s' user='%s' password='%s' port='%d'",
+                      cnt->conf.database_dbname, /* dbname */
+                      (cnt->conf.database_host ? cnt->conf.database_host : ""), /* host (may be blank) */
+                      (cnt->conf.database_user ? cnt->conf.database_user : ""), /* user (may be blank) */
+                      (cnt->conf.database_password ? cnt->conf.database_password : ""), /* password (may be blank) */
+                      cnt->conf.database_port
+            );
+
+            cnt->database_pg = PQconnectdb(connstring);
+            if (PQstatus(cnt->database_pg) == CONNECTION_BAD) {
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
+                ,_("Connection to PostgreSQL database '%s' failed: %s")
+                ,cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
+                return -2;
+            }
+        }
+    #else
+        (void)cnt;  /* Avoid compiler warnings */
+    #endif /* HAVE_PGSQL */
+
+    return 0;
+}
+
+static int dbse_init(struct context *cnt){
+    int retcd = 0;
+
+    if (cnt->conf.database_type) {
+        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
+            ,_("Database backend %s"), cnt->conf.database_type);
+
+        retcd = dbse_init_mysql(cnt);
+        if (retcd != 0) return retcd;
+
+        retcd = dbse_init_sqlite3(cnt);
+        if (retcd != 0) return retcd;
+
+        retcd = dbse_init_pgsql(cnt);
+        if (retcd != 0) return retcd;
+
+        /* Set the sql mask file according to the SQL config options*/
+        cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
+                        cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
+                        cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
+                        cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
+    }
+
+    return retcd;
+}
+
+static void dbse_deinit(struct context *cnt){
+    if (cnt->conf.database_type) {
+        #ifdef HAVE_MYSQL
+            if ( (!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
+                mysql_close(cnt->database);
+                cnt->database_event_id = 0;
+            }
+        #endif /* HAVE_MYSQL */
+
+        #ifdef HAVE_PGSQL
+                if ((!strcmp(cnt->conf.database_type, "postgresql")) && (cnt->conf.database_dbname)) {
+                    PQfinish(cnt->database_pg);
+                }
+        #endif /* HAVE_PGSQL */
+
+        #ifdef HAVE_SQLITE3
+                /* Close the SQLite database */
+                if ((!strcmp(cnt->conf.database_type, "sqlite3")) && (cnt->conf.database_dbname)) {
+                    sqlite3_close(cnt->database_sqlite3);
+                    cnt->database_sqlite3 = NULL;
+                }
+        #endif /* HAVE_SQLITE3 */
+        (void)cnt;
+    }
+}
+
+static void dbse_sqlmask_update(struct context *cnt){
+    /*
+    * Set the sql mask file according to the SQL config options
+    * We update it for every frame in case the config was updated
+    * via remote control.
+    */
+    cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
+                    cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
+                    cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
+                    cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
 }
 
 /**
@@ -984,7 +1204,7 @@ static void mot_stream_deinit(struct context *cnt){
 static int motion_init(struct context *cnt)
 {
     FILE *picture;
-    int indx;
+    int indx, retcd;
 
     util_threadname_set("ml",cnt->threadnr,cnt->conf.camera_name);
 
@@ -1007,7 +1227,8 @@ static int motion_init(struct context *cnt)
     cnt->prev_event = 0;
     cnt->lightswitch_framecounter = 0;
     cnt->detecting_motion = 0;
-    cnt->makemovie = 0;
+    cnt->event_user = FALSE;
+    cnt->event_stop = FALSE;
 
     /* Make sure to default the high res to zero */
     cnt->imgs.width_high = 0;
@@ -1124,14 +1345,14 @@ static int motion_init(struct context *cnt)
     if (!strcmp(cnt->conf.picture_type, "ppm"))
         cnt->imgs.picture_type = IMAGE_TYPE_PPM;
     else if (!strcmp(cnt->conf.picture_type, "webp")) {
-#ifdef HAVE_WEBP
-        cnt->imgs.picture_type = IMAGE_TYPE_WEBP;
-#else
-        /* Fallback to jpeg if webp was selected in the config file, but the support for it was not compiled in */
-        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
-        ,_("webp image format is not available, failing back to jpeg"));
-        cnt->imgs.picture_type = IMAGE_TYPE_JPEG;
-#endif /* HAVE_WEBP */
+        #ifdef HAVE_WEBP
+                cnt->imgs.picture_type = IMAGE_TYPE_WEBP;
+        #else
+                /* Fallback to jpeg if webp was selected in the config file, but the support for it was not compiled in */
+                MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+                ,_("webp image format is not available, failing back to jpeg"));
+                cnt->imgs.picture_type = IMAGE_TYPE_JPEG;
+        #endif /* HAVE_WEBP */
     }
     else
         cnt->imgs.picture_type = IMAGE_TYPE_JPEG;
@@ -1170,129 +1391,39 @@ static int motion_init(struct context *cnt)
     /* create a reference frame */
     alg_update_reference_frame(cnt, RESET_REF_FRAME);
 
-#if defined(HAVE_V4L2) && !defined(__FreeBSD__)
-    /* open video loopback devices if enabled */
-    if (cnt->conf.video_pipe) {
-        MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
-            ,_("Opening video loopback device for normal pictures"));
+    #if defined(HAVE_V4L2) && !defined(__FreeBSD__)
+        /* open video loopback devices if enabled */
+        if (cnt->conf.video_pipe) {
+            MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
+                ,_("Opening video loopback device for normal pictures"));
 
-        /* vid_startpipe should get the output dimensions */
-        cnt->pipe = vlp_startpipe(cnt->conf.video_pipe, cnt->imgs.width, cnt->imgs.height);
+            /* vid_startpipe should get the output dimensions */
+            cnt->pipe = vlp_startpipe(cnt->conf.video_pipe, cnt->imgs.width, cnt->imgs.height);
 
-        if (cnt->pipe < 0) {
-            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
-                ,_("Failed to open video loopback for normal pictures"));
-            return -1;
-        }
-    }
-
-    if (cnt->conf.video_pipe_motion) {
-        MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
-            ,_("Opening video loopback device for motion pictures"));
-
-        /* vid_startpipe should get the output dimensions */
-        cnt->mpipe = vlp_startpipe(cnt->conf.video_pipe_motion, cnt->imgs.width, cnt->imgs.height);
-
-        if (cnt->mpipe < 0) {
-            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
-                ,_("Failed to open video loopback for motion pictures"));
-            return -1;
-        }
-    }
-#endif /* HAVE_V4L2 && !__FreeBSD__ */
-
-#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
-    if (cnt->conf.database_type) {
-        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
-            ,_("Database backend %s"), cnt->conf.database_type);
-
-#ifdef HAVE_SQLITE3
-    /* if database_sqlite3 is NULL then we are using a non threaded version of
-     * sqlite3 and will need a seperate connection for each thread */
-    if (cnt->database_sqlite3) {
-        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO,_("SQLite3 using shared handle"));
-    } else if ((!strcmp(cnt->conf.database_type, "sqlite3")) && cnt->conf.database_dbname) {
-        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
-            ,_("SQLite3 Database filename %s"), cnt->conf.database_dbname);
-        if (sqlite3_open(cnt->conf.database_dbname, &cnt->database_sqlite3) != SQLITE_OK) {
-            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                ,_("Can't open database %s : %s")
-                ,cnt->conf.database_dbname, sqlite3_errmsg(cnt->database_sqlite3));
-            sqlite3_close(cnt->database_sqlite3);
-            exit(1);
-        }
-        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
-            ,_("database_busy_timeout %d msec"), cnt->conf.database_busy_timeout);
-        if (sqlite3_busy_timeout(cnt->database_sqlite3, cnt->conf.database_busy_timeout) != SQLITE_OK)
-            MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                ,_("database_busy_timeout failed %s")
-                ,sqlite3_errmsg(cnt->database_sqlite3));
-    }
-#endif /* HAVE_SQLITE3 */
-
-#ifdef HAVE_MYSQL
-        if ((!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
-            // close database to be sure that we are not leaking
-            mysql_close(cnt->database);
-            cnt->database_event_id = 0;
-
-            cnt->database = mymalloc(sizeof(MYSQL));
-            mysql_init(cnt->database);
-
-            if (!mysql_real_connect(cnt->database, cnt->conf.database_host, cnt->conf.database_user,
-                cnt->conf.database_password, cnt->conf.database_dbname, 0, NULL, 0)) {
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                    ,_("Cannot connect to MySQL database %s on host %s with user %s")
-                    ,cnt->conf.database_dbname, cnt->conf.database_host
-                    ,cnt->conf.database_user);
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                    ,_("MySQL error was %s"), mysql_error(cnt->database));
-                return -2;
-            }
-#if (defined(MYSQL_VERSION_ID)) && (MYSQL_VERSION_ID > 50012)
-            my_bool my_true = TRUE;
-            mysql_options(cnt->database, MYSQL_OPT_RECONNECT, &my_true);
-#endif
-        }
-#endif /* HAVE_MYSQL */
-
-#ifdef HAVE_PGSQL
-        if ((!strcmp(cnt->conf.database_type, "postgresql")) && (cnt->conf.database_dbname)) {
-            char connstring[255];
-
-            /*
-             * Create the connection string.
-             * Quote the values so we can have null values (blank)
-             */
-            snprintf(connstring, 255,
-                     "dbname='%s' host='%s' user='%s' password='%s' port='%d'",
-                      cnt->conf.database_dbname, /* dbname */
-                      (cnt->conf.database_host ? cnt->conf.database_host : ""), /* host (may be blank) */
-                      (cnt->conf.database_user ? cnt->conf.database_user : ""), /* user (may be blank) */
-                      (cnt->conf.database_password ? cnt->conf.database_password : ""), /* password (may be blank) */
-                      cnt->conf.database_port
-            );
-
-            cnt->database_pg = PQconnectdb(connstring);
-            if (PQstatus(cnt->database_pg) == CONNECTION_BAD) {
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                ,_("Connection to PostgreSQL database '%s' failed: %s")
-                ,cnt->conf.database_dbname, PQerrorMessage(cnt->database_pg));
-                return -2;
+            if (cnt->pipe < 0) {
+                MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+                    ,_("Failed to open video loopback for normal pictures"));
+                return -1;
             }
         }
-#endif /* HAVE_PGSQL */
 
+        if (cnt->conf.video_pipe_motion) {
+            MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
+                ,_("Opening video loopback device for motion pictures"));
 
-        /* Set the sql mask file according to the SQL config options*/
+            /* vid_startpipe should get the output dimensions */
+            cnt->mpipe = vlp_startpipe(cnt->conf.video_pipe_motion, cnt->imgs.width, cnt->imgs.height);
 
-        cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
-                        cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
-                        cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
-                        cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
-    }
+            if (cnt->mpipe < 0) {
+                MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+                    ,_("Failed to open video loopback for motion pictures"));
+                return -1;
+            }
+        }
+    #endif /* HAVE_V4L2 && !__FreeBSD__ */
 
-#endif /* defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3) */
+    retcd = dbse_init(cnt);
+    if (retcd != 0) return retcd;
 
     /* Load the mask file if any */
     if (cnt->conf.mask_file) {
@@ -1414,6 +1545,8 @@ static int motion_init(struct context *cnt)
         cnt->rolling_average_data[indx] = cnt->required_frame_time;
 
 
+    cnt->track_posx = 0;
+    cnt->track_posy = 0;
     if (cnt->track.type)
         cnt->moved = track_center(cnt, cnt->video_dev, 0, 0, 0);
 
@@ -1582,27 +1715,8 @@ static void motion_cleanup(struct context *cnt) {
     free(cnt->eventtime_tm);
     cnt->eventtime_tm = NULL;
 
-    if (cnt->conf.database_type) {
-#ifdef HAVE_MYSQL
-        if ( (!strcmp(cnt->conf.database_type, "mysql")) && (cnt->conf.database_dbname)) {
-            mysql_close(cnt->database);
-            cnt->database_event_id = 0;
-        }
-#endif /* HAVE_MYSQL */
+    dbse_deinit(cnt);
 
-#ifdef HAVE_PGSQL
-        if ((!strcmp(cnt->conf.database_type, "postgresql")) && (cnt->conf.database_dbname)) {
-            PQfinish(cnt->database_pg);
-        }
-#endif /* HAVE_PGSQL */
-
-#ifdef HAVE_SQLITE3
-        /* Close the SQLite database */
-        if ((!strcmp(cnt->conf.database_type, "sqlite3")) && (cnt->conf.database_dbname)) {
-            sqlite3_close(cnt->database_sqlite3);
-        }
-#endif /* HAVE_SQLITE3 */
-    }
 }
 
 static void mlp_mask_privacy(struct context *cnt){
@@ -1864,6 +1978,10 @@ static int mlp_retry(struct context *cnt){
         MOTION_LOG(WRN, TYPE_ALL, NO_ERRNO
             ,_("Retrying until successful connection with camera"));
         cnt->video_dev = vid_start(cnt);
+
+        if (cnt->video_dev < 0) {
+            return 1;
+        }
 
         if ((cnt->imgs.width % 8) || (cnt->imgs.height % 8)) {
             MOTION_LOG(CRT, TYPE_NETCAM, NO_ERRNO
@@ -2347,7 +2465,7 @@ static void mlp_actions(struct context *cnt){
      * If post_capture is enabled we also take care of this in the this
      * code section.
      */
-    if (cnt->conf.emulate_motion && (cnt->startup_frames == 0)) {
+    if ((cnt->conf.emulate_motion || cnt->event_user) && (cnt->startup_frames == 0)) {
         cnt->detecting_motion = 1;
         if (cnt->conf.post_capture > 0) {
             /* Setup the postcap counter */
@@ -2418,7 +2536,7 @@ static void mlp_actions(struct context *cnt){
         cnt->current_image->flags |= IMAGE_PRECAP;
         /* gapless movie feature */
         if ((cnt->conf.event_gap == 0) && (cnt->detecting_motion == 1))
-            cnt->makemovie = 1;
+            cnt->event_stop = TRUE;
         cnt->detecting_motion = 0;
     }
 
@@ -2435,15 +2553,15 @@ static void mlp_actions(struct context *cnt){
      */
     if ((cnt->conf.movie_max_time && cnt->event_nr == cnt->prev_event) &&
         (cnt->currenttime - cnt->eventtime >= cnt->conf.movie_max_time))
-        cnt->makemovie = 1;
+        cnt->event_stop = TRUE;
 
     /*
      * Now test for quiet longer than 'gap' OR make movie as decided in
      * previous statement.
      */
     if (((cnt->currenttime - cnt->lasttime >= cnt->conf.event_gap) && cnt->conf.event_gap > 0) ||
-          cnt->makemovie) {
-        if (cnt->event_nr == cnt->prev_event || cnt->makemovie) {
+          cnt->event_stop) {
+        if (cnt->event_nr == cnt->prev_event || cnt->event_stop) {
 
             /* Flush image buffer */
             process_image_ring(cnt, IMAGE_BUFFER_FLUSH);
@@ -2465,7 +2583,9 @@ static void mlp_actions(struct context *cnt){
 
             MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, _("End of event %d"), cnt->event_nr);
 
-            cnt->makemovie = 0;
+            cnt->event_stop = FALSE;
+            cnt->event_user = FALSE;
+
             /* Reset post capture */
             cnt->postcap = 0;
 
@@ -2488,7 +2608,7 @@ static void mlp_actions(struct context *cnt){
 }
 
 static void mlp_setupmode(struct context *cnt){
-/***** MOTION LOOP - SETUP MODE CONSOLE OUTPUT SECTION *****/
+    /***** MOTION LOOP - SETUP MODE CONSOLE OUTPUT SECTION *****/
 
     /* If CAMERA_VERBOSE enabled output some numbers to console */
     if (cnt->conf.setup_mode) {
@@ -2650,7 +2770,6 @@ static void mlp_loopback(struct context *cnt){
 
 }
 
-
 static void mlp_parmsupdate(struct context *cnt){
     /***** MOTION LOOP - ONCE PER SECOND PARAMETER UPDATE SECTION *****/
 
@@ -2709,21 +2828,7 @@ static void mlp_parmsupdate(struct context *cnt){
             cnt->smartmask_ratio = 5 * cnt->lastrate * (11 - cnt->smartmask_speed);
         }
 
-#if defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3)
-
-        /*
-         * Set the sql mask file according to the SQL config options
-         * We update it for every frame in case the config was updated
-         * via remote control.
-         */
-        cnt->sql_mask = cnt->conf.sql_log_picture * (FTYPE_IMAGE + FTYPE_IMAGE_MOTION) +
-                        cnt->conf.sql_log_snapshot * FTYPE_IMAGE_SNAPSHOT +
-                        cnt->conf.sql_log_movie * (FTYPE_MPEG + FTYPE_MPEG_MOTION) +
-                        cnt->conf.sql_log_timelapse * FTYPE_MPEG_TIMELAPSE;
-#endif /* defined(HAVE_MYSQL) || defined(HAVE_PGSQL) || defined(HAVE_SQLITE3) */
-
-
-
+        dbse_sqlmask_update(cnt);
 
     }
 
@@ -2804,7 +2909,7 @@ static void *motion_loop(void *arg)
     double bench_fps = 0.0;
 
     if (motion_init(cnt) == 0){
-        while (!cnt->finish || cnt->makemovie) {
+        while (!cnt->finish || cnt->event_stop) {
 
             /* benchmark frame rate */
             if (bench_sec > 10000000L)
@@ -2987,65 +3092,6 @@ static void cntlist_create(int argc, char *argv[]){
     cnt_list[0]->conf.argv = argv;
     cnt_list[0]->conf.argc = argc;
     cnt_list = conf_load(cnt_list);
-}
-
-static void dbse_global_deinit(void){
-    MOTION_LOG(DBG, TYPE_ALL, NO_ERRNO, _("Closing MYSQL"));
-#ifdef HAVE_MYSQL
-    mysql_library_end();
-#endif /* HAVE_MYSQL */
-}
-
-static void dbse_global_init(void){
-
-    MOTION_LOG(DBG, TYPE_DB, NO_ERRNO,_("Initializing database"));
-   /* Initialize all the database items */
-#ifdef HAVE_MYSQL
-    if (mysql_library_init(0, NULL, NULL)) {
-        fprintf(stderr, "could not initialize MySQL library\n");
-        exit(1);
-    }
-#endif /* HAVE_MYSQL */
-
-#ifdef HAVE_SQLITE3
-    int indx;
-    /* database_sqlite3 == NULL if not changed causes each thread to create their own
-     * sqlite3 connection this will only happens when using a non-threaded sqlite version */
-    cnt_list[0]->database_sqlite3=NULL;
-    if (cnt_list[0]->conf.database_type && ((!strcmp(cnt_list[0]->conf.database_type, "sqlite3")) && cnt_list[0]->conf.database_dbname)) {
-        MOTION_LOG(NTC, TYPE_DB, NO_ERRNO
-            ,_("SQLite3 Database filename %s")
-            ,cnt_list[0]->conf.database_dbname);
-
-        int thread_safe = sqlite3_threadsafe();
-        if (thread_safe > 0) {
-            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO, _("SQLite3 is threadsafe"));
-            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO, _("SQLite3 serialized %s")
-                ,(sqlite3_config(SQLITE_CONFIG_SERIALIZED)?_("FAILED"):_("SUCCESS")));
-            if (sqlite3_open( cnt_list[0]->conf.database_dbname, &cnt_list[0]->database_sqlite3) != SQLITE_OK) {
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO
-                    ,_("Can't open database %s : %s")
-                    ,cnt_list[0]->conf.database_dbname
-                    ,sqlite3_errmsg( cnt_list[0]->database_sqlite3));
-                sqlite3_close( cnt_list[0]->database_sqlite3);
-                exit(1);
-            }
-            MOTION_LOG(NTC, TYPE_DB, NO_ERRNO,_("database_busy_timeout %d msec"),
-                    cnt_list[0]->conf.database_busy_timeout);
-            if (sqlite3_busy_timeout( cnt_list[0]->database_sqlite3,  cnt_list[0]->conf.database_busy_timeout) != SQLITE_OK)
-                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO,_("database_busy_timeout failed %s")
-                    ,sqlite3_errmsg( cnt_list[0]->database_sqlite3));
-        }
-    }
-    /* Cascade to all threads */
-    indx = 1;
-    while (cnt_list[indx] != NULL) {
-        cnt_list[indx]->database_sqlite3 = cnt_list[0]->database_sqlite3;
-        indx++;
-    }
-
-#endif /* HAVE_SQLITE3 */
-
 }
 
 static void motion_shutdown(void){
@@ -3345,7 +3391,7 @@ static void motion_watchdog(int indx){
         MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
             ,_("Thread %d - Watchdog timeout. Trying to do a graceful restart")
             , cnt_list[indx]->threadnr);
-        cnt_list[indx]->makemovie = 1; /* Trigger end of event */
+        cnt_list[indx]->event_stop = TRUE; /* Trigger end of event */
         cnt_list[indx]->finish = 1;
     }
 
