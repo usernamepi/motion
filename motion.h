@@ -399,6 +399,7 @@ struct context {
 
     int noise;
     int threshold;
+    int threshold_maximum;
     int diffs_last[THRESHOLD_TUNE_LENGTH];
     int smartmask_speed;
 
@@ -449,9 +450,6 @@ struct context {
 
     struct stream stream;
     int stream_count;
-
-    struct stream substream;
-    int substream_count;
 
     char hostname[PATH_MAX];
 

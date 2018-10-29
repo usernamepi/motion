@@ -15,7 +15,29 @@
 #ifndef _INCLUDE_NETCAM_H
 #define _INCLUDE_NETCAM_H
 
+/* This is a workaround regarding these defines.  The config.h file defines
+ * HAVE_STDLIB_H as 1 whereas the jpeglib.h just defines it without a value.
+ * this causes massive warnings/error on mis-matched definitions.  We do not
+ * control either of these so we have to suffer through this workaround hack
+*/
+#if (HAVE_STDLIB_H == 1)
+    #undef HAVE_STDLIB_H
+    #define HAVE_STDLIB_H_ORIG 1
+#endif
+
 #include <jpeglib.h>
+
+#ifdef HAVE_STDLIB_H
+  #ifdef HAVE_STDLIB_H_ORIG
+    #undef HAVE_STDLIB_H
+    #undef HAVE_STDLIB_H_ORIG
+    #define HAVE_STDLIB_H 1
+  #else
+    #undef HAVE_STDLIB_H
+  #endif
+#endif
+
+
 #include <setjmp.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -63,6 +85,7 @@ typedef struct netcam_context *netcam_context_ptr;
 
 #define NCS_UNSUPPORTED         0  /* streaming is not supported */
 #define NCS_MULTIPART           1  /* streaming is done via multipart */
+#define NCS_BLOCK               2  /* streaming is done via MJPG-block */
 
 /*
  * struct url_t is used when parsing the user-supplied URL, as well as
@@ -179,6 +202,7 @@ typedef struct netcam_context {
                                    buffer for the HTTP data */
 
     struct ftp_context  *ftp;        /* this structure contains the context for FTP connection */
+    struct file_context *file;       /* this structure contains the context for FILE connection */
 
     int (*get_image)(netcam_context_ptr);
                                 /* Function to fetch the image from

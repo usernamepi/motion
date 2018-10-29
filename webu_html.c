@@ -574,9 +574,6 @@ static void webu_html_strminfo(struct strminfo_ctx *strm_info, int indx) {
         snprintf(strm_info->lnk_src,WEBUI_LEN_LNK,"%s","");
         snprintf(strm_info->lnk_camid,WEBUI_LEN_LNK,"%s","");
         strm_info->port = strm_info->cntlst[indx]->conf.stream_port;
-        if (strm_info->cntlst[indx]->conf.substream_port){
-            strm_info->port = strm_info->cntlst[indx]->conf.substream_port;
-        }
     } else {
         /* If using the main port,we need to insert a thread number into url*/
         if (strm_info->cntlst[0]->conf.stream_port != 0) {
@@ -1240,12 +1237,11 @@ void webu_html_main(struct webui_ctx *webui) {
         webu_html_page(webui);
 
     } else if ((!strcmp(webui->uri_cmd1,"config")) &&
-               (!strcmp(webui->uri_cmd2,"set"))) {
-        retcd = webu_process_config(webui);
-
-    } else if ((!strcmp(webui->uri_cmd1,"config")) &&
                (!strcmp(webui->uri_cmd2,"write"))) {
         webu_process_action(webui);
+
+    } else if (!strcmp(webui->uri_cmd1,"config")) {
+        retcd = webu_process_config(webui);
 
     } else if (!strcmp(webui->uri_cmd1,"action")){
         webu_process_action(webui);

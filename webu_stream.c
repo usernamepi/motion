@@ -30,9 +30,42 @@ static void webu_stream_mjpeg_checkbuffers(struct webui_ctx *webui) {
 
 }
 
+static void webu_stream_mjpeg_delay(struct webui_ctx *webui) {
+    /* Sleep required time to get to the user requested frame
+     * rate for the stream
+     */
+
+    long   stream_rate;
+    struct timeval time_curr;
+    long   stream_delay;
+
+    gettimeofday(&time_curr, NULL);
+
+    /* The stream rate MUST be less than 1000000000 otherwise undefined behaviour
+     * will occur with the SLEEP function.
+     */
+    stream_delay = ((time_curr.tv_usec - webui->time_last.tv_usec)*1000000) -
+        ((time_curr.tv_sec - webui->time_last.tv_sec)*1000000000);
+    if (stream_delay < 0)  stream_delay = 0;
+    if (stream_delay > 1000000000 ) stream_delay = 1000000000;
+
+    if (webui->cnt->conf.stream_maxrate > 1){
+        stream_rate = ( (1000000000 / webui->cnt->conf.stream_maxrate) - stream_delay);
+        if ((stream_rate > 0) && (stream_rate < 1000000000)){
+            SLEEP(0,stream_rate);
+        } else if (stream_rate == 1000000000) {
+            SLEEP(1,0);
+        }
+    } else {
+        SLEEP(1,0);
+    }
+    gettimeofday(&webui->time_last, NULL);
+
+}
+
 static void webu_stream_mjpeg_getimg(struct webui_ctx *webui) {
     long jpeg_size;
-    char resp_head[60];
+    char resp_head[80];
     int  header_len;
     struct stream_data *local_stream;
 
@@ -62,17 +95,18 @@ static void webu_stream_mjpeg_getimg(struct webui_ctx *webui) {
             return;
         }
         jpeg_size = local_stream->jpeg_size;
-        header_len = snprintf(resp_head, 60
-            ,"Content-type: image/jpeg\r\n"
+        header_len = snprintf(resp_head, 80
+            ,"--BoundaryString\r\n"
+            "Content-type: image/jpeg\r\n"
             "Content-Length: %9ld\r\n\r\n"
             ,jpeg_size);
         memcpy(webui->resp_page, resp_head, header_len);
         memcpy(webui->resp_page + header_len
             ,local_stream->jpeg_data
             ,jpeg_size);
-        /* Copy in the boundary string terminator after the jpg data at the end*/
-        memcpy(webui->resp_page + header_len + jpeg_size,"\r\n--BoundaryString\r\n",20);
-        webui->resp_used = header_len + jpeg_size + 20;
+        /* Copy in the terminator after the jpg data at the end*/
+        memcpy(webui->resp_page + header_len + jpeg_size,"\r\n",2);
+        webui->resp_used = header_len + jpeg_size + 2;
     pthread_mutex_unlock(&webui->cnt->mutex_stream);
 
 }
@@ -83,32 +117,20 @@ static ssize_t webu_stream_mjpeg_response (void *cls, uint64_t pos, char *buf, s
      * browser.  We sleep the requested amount of time between fetching images to match
      * the user configuration parameters.  This function may be called multiple times for
      * a single image so we can write what we can to the buffer and pick up remaining bytes
-     * to send based upon the static variable of stream position
+     * to send based upon the stream position
      */
     struct webui_ctx *webui = cls;
-    static uint64_t stream_pos;
     size_t sent_bytes;
-    long   stream_rate;
-    static int indx_start;
 
     (void)pos;  /*Remove compiler warning */
 
     if (webui->cnt->webcontrol_finish) return -1;
 
-    /* We use indx_start to send a few extra images when the stream starts*/
-    if ((stream_pos == 0) || (webui->resp_used == 0)){
-        if (webui->resp_used == 0) indx_start = 1;
-        if (indx_start > 3) {
-            indx_start = 3;
-            if (webui->cnt->conf.stream_maxrate > 1){
-                stream_rate =  (1000000000 / webui->cnt->conf.stream_maxrate);
-                SLEEP(0,stream_rate);
-            } else {
-                SLEEP(1,0);
-            }
-        }
-        indx_start++;
-        stream_pos = 0;
+    if ((webui->stream_pos == 0) || (webui->resp_used == 0)){
+
+        webu_stream_mjpeg_delay(webui);
+
+        webui->stream_pos = 0;
         webui->resp_used = 0;
 
         webu_stream_mjpeg_getimg(webui);
@@ -116,17 +138,17 @@ static ssize_t webu_stream_mjpeg_response (void *cls, uint64_t pos, char *buf, s
         if (webui->resp_used == 0) return 0;
     }
 
-    if ((webui->resp_used - stream_pos) > max) {
+    if ((webui->resp_used - webui->stream_pos) > max) {
         sent_bytes = max;
     } else {
-        sent_bytes = webui->resp_used - stream_pos;
+        sent_bytes = webui->resp_used - webui->stream_pos;
     }
 
-    memcpy(buf, webui->resp_page + stream_pos, sent_bytes);
+    memcpy(buf, webui->resp_page + webui->stream_pos, sent_bytes);
 
-    stream_pos = stream_pos + sent_bytes;
-    if (stream_pos >= webui->resp_used){
-        stream_pos = 0;
+    webui->stream_pos = webui->stream_pos + sent_bytes;
+    if (webui->stream_pos >= webui->resp_used){
+        webui->stream_pos = 0;
     }
 
     return sent_bytes;
@@ -245,6 +267,8 @@ int webu_stream_mjpeg(struct webui_ctx *webui) {
     webu_stream_cnct_count(webui);
 
     webu_stream_mjpeg_checkbuffers(webui);
+
+    gettimeofday(&webui->time_last, NULL);
 
     response = MHD_create_response_from_callback (MHD_SIZE_UNKNOWN, 1024
         ,&webu_stream_mjpeg_response, webui, NULL);
