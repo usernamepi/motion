@@ -26,6 +26,8 @@
 # System control configuration parameters
 ############################################################
 
+camera_name motion
+
 # Start in daemon (background) mode and release terminal.
 daemon off
 
@@ -98,6 +100,10 @@ height 480
 # Maximum number of frames to be captured per second.
 framerate 15
 
+# Rotate image this number of degrees. The rotation affects all saved images as
+# well as movies. Valid values: 0 (default = no rotation), 90, 180 and 270.
+rotate 0
+
 # Text to be overlayed in the lower left corner of images
 text_left CAMERA1
 
@@ -131,6 +137,13 @@ pre_capture 3
 
 # Number of frames to capture after motion is no longer detected.
 post_capture 0
+
+# Maximum length in seconds of a movie
+# When value is exceeded a new movie file is created. (Default: 0 = infinite)
+max_movie_time 600
+
+# Always save images even if there was no motion (default: off)
+emulate_motion off
 
 ############################################################
 # Script execution configuration parameters
@@ -167,6 +180,9 @@ movie_max_time 60
 
 # The encoding quality of the movie. (0=use bitrate. 1=worst quality, 100=best)
 movie_quality 45
+
+# Bitrate of movies produced by ffmpeg
+movie_bps 2000
 
 # Container/Codec to used for the movie. See motion_guide.html
 movie_codec mkv
