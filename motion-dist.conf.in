@@ -29,7 +29,7 @@
 camera_name motion
 
 # Start in daemon (background) mode and release terminal.
-daemon on
+daemon off
 
 # Start in Setup-Mode, daemon disabled.
 setup_mode off
