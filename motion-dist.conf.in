@@ -81,11 +81,15 @@ v4l2_palette 17
 # The full URL of the network camera stream.
 ; netcam_url value
 
+# The network camera high resolution URL. If the netcam_url is not specified, this option is ignored
+; netcam_highres value
+
 # Name of mmal camera (e.g. vc.ril.camera for pi camera).
 ; mmalcam_name value
 
 # Camera control parameters (see raspivid/raspistill tool documentation)
 ; mmalcam_control_params value
+
 
 ############################################################
 # Image Processing configuration parameters
@@ -114,6 +118,7 @@ text_right %Y-%m-%d\n%T-%q
 # Valid values: on, off, preview (default: off)
 # Set to 'preview' will only draw a box in preview_shot pictures.
 locate_motion_mode off
+
 
 ############################################################
 # Motion detection configuration parameters
@@ -150,6 +155,7 @@ movie_max_time 600
 # Always save images even if there was no motion (default: off)
 emulate_motion off
 
+
 ############################################################
 # Script execution configuration parameters
 ############################################################
@@ -163,6 +169,7 @@ emulate_motion off
 # Command to be executed when a movie file is closed.
 ; on_movie_end value
 
+
 ############################################################
 # Picture output configuration parameters
 ############################################################
@@ -172,6 +179,7 @@ picture_output off
 
 # File name(without extension) for pictures relative to target directory
 picture_filename %Y%m%d%H%M%S-%q
+
 
 ############################################################
 # Movie output configuration parameters
@@ -203,6 +211,28 @@ movie_extpipe_use off
 ;movie_extpipe mencoder -demuxer rawvideo -rawvideo w=%w:h=%h:fps=%fps -ovc x264 -x264encopts preset=ultrafast -of lavf -o %f.mp4 - -fps %fps
 ;movie_extpipe ffmpeg -y -f rawvideo -pix_fmt yuv420p -video_size %wx%h -framerate %fps -i pipe:0 -vcodec libx264 -preset ultrafast -f mp4 %f.mp4
 
+
+############################################################
+# Timelapse
+############################################################
+
+# The file rollover mode of the timelapse video
+# Valid values: hourly, daily, weekly-sunday, weekly-monday, monthly, manual
+timelapse_mode daily
+
+# Create a timelapse video saving a picture frame at the interval in seconds set by this parameter.
+timelapse_interval 1
+
+# The frame per second rate to use in the playback of the timelapse video
+timelapse_fps 30
+
+# Container/Codec to be used by timelapse video
+timelapse_codec mpg
+
+# File path for the timelapse videos relative to target_dir.
+timelapse_filename %Y%m%d-timelapse
+
+
 ############################################################
 # Webcontrol configuration parameters
 ############################################################
@@ -216,6 +246,7 @@ webcontrol_localhost on
 # Type of configuration options to allow via the webcontrol.
 webcontrol_parms 0
 
+
 ############################################################
 # Live stream configuration parameters
 ############################################################
@@ -225,6 +256,39 @@ stream_port 8081
 
 # Restrict stream connections to the localhost.
 stream_localhost on
+
+
+############################################################
+# Scripts
+############################################################
+
+# executed when motion is detected in the predefined area indicated in the area_detect option
+; on_area_detected value
+
+# executed when a lost camera is found
+; on_camera_found value
+
+# executed when a camera can't be opened or if it is lost
+; on_camera_lost value
+
+# executed when an event ends
+; on_event_end value
+
+# executed at the start of an event
+; on_event_start value
+
+# executed when motion is detected
+; on_motion_detected value
+
+# executed after a new movie was created
+; on_movie_end value
+
+# executed when a new movie is being created
+; on_movie_start value
+
+# executed when a picture is saved
+; on_picture_save value
+
 
 ##############################################################
 # Camera config files - One for each camera.
