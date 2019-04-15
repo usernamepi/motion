@@ -114,6 +114,11 @@ text_left CAMERA1
 # Text to be overlayed in the lower right corner of images.
 text_right %Y-%m-%d\n%T-%q
 
+# Locate and draw a box around the moving object.
+# Valid values: on, off, preview (default: off)
+# Set to 'preview' will only draw a box in preview_shot pictures.
+locate_motion_mode off
+
 
 ############################################################
 # Motion detection configuration parameters
@@ -145,7 +150,7 @@ post_capture 0
 
 # Maximum length in seconds of a movie
 # When value is exceeded a new movie file is created. (Default: 0 = infinite)
-max_movie_time 600
+movie_max_time 600
 
 # Always save images even if there was no motion (default: off)
 emulate_motion off
