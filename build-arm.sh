@@ -3,6 +3,14 @@
 sudo apt-get install autoconf automake build-essential pkgconf libtool libzip-dev libjpeg-dev git libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libavdevice-dev libwebp-dev libmicrohttpd-dev
 
 autoreconf -fiv
-CFLAGS="-O3 -std=gnu99 -march=native -mtune=native -mfloat-abi=hard -mfpu=neon" ./configure
+
+arch=`dpkg --print-architecture`
+if [ "$ARCH" == "arm64" ] || [ "$arch" == "arm64" ]
+then
+	CFLAGS="-O3 -std=gnu99 -march=native" ./configure
+else
+	CFLAGS="-O3 -std=gnu99 -march=native -mtune=native -mfloat-abi=hard -mfpu=neon" ./configure
+fi
+
 make -j3
 
