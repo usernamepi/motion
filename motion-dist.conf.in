@@ -169,6 +169,24 @@ emulate_motion off
 # Command to be executed when a movie file is closed.
 ; on_movie_end value
 
+# executed when motion is detected in the predefined area indicated in the area_detect option
+; on_area_detected value
+
+# executed when a lost camera is found
+; on_camera_found value
+
+# executed when a camera can't be opened or if it is lost
+; on_camera_lost value
+
+# executed when motion is detected
+; on_motion_detected value
+
+# executed when a new movie is being created
+; on_movie_start value
+
+# executed when a picture is saved
+; on_picture_save value
+
 
 ############################################################
 # Picture output configuration parameters
@@ -246,6 +264,12 @@ webcontrol_localhost on
 # Type of configuration options to allow via the webcontrol.
 webcontrol_parms 0
 
+# The type of webcontrol interface to provide.
+# The value of 0 provides a traditional web page interface using html/css.
+# The value of 1 provides a text only interface suitable for programmatic access.
+# The value of 2 provides the legacy web control interface
+
+webcontrol_interface 0
 
 ############################################################
 # Live stream configuration parameters
