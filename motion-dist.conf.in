@@ -283,35 +283,24 @@ stream_localhost on
 
 
 ############################################################
-# Scripts
+# Database configuration parameters
 ############################################################
 
-# executed when motion is detected in the predefined area indicated in the area_detect option
-; on_area_detected value
+#database_type mysql
+#database_dbname value
+#database_host localhost
+#database_port 3306
+#database_user value
+#database_password value
 
-# executed when a lost camera is found
-; on_camera_found value
+#sql_log_picture on
+#sql_log_snapshot on
+#sql_log_movie on
+#sql_log_timelapse on
 
-# executed when a camera can't be opened or if it is lost
-; on_camera_lost value
-
-# executed when an event ends
-; on_event_end value
-
-# executed at the start of an event
-; on_event_start value
-
-# executed when motion is detected
-; on_motion_detected value
-
-# executed after a new movie was created
-; on_movie_end value
-
-# executed when a new movie is being created
-; on_movie_start value
-
-# executed when a picture is saved
-; on_picture_save value
+#sql_query insert into table values(1)
+#sql_query_start insert into table values(2)
+#sql_query_stop insert into table values(3)
 
 
 ##############################################################
