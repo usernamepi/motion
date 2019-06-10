@@ -5,11 +5,11 @@ sudo apt-get install autoconf automake build-essential pkgconf libtool libzip-de
 autoreconf -fiv
 
 arch=`dpkg --print-architecture`
-if [ "$ARCH" == "arm64" ] || [ "$arch" == "arm64" ]
+if [ "$ARCH" == "arm" ] || [ "$arch" == "armhf" ]
 then
-	CFLAGS="-O3 -std=gnu99 -march=native" ./configure
-else
 	CFLAGS="-O3 -std=gnu99 -march=native -mtune=native -mfloat-abi=hard -mfpu=neon" ./configure
+else
+	CFLAGS="-O3 -std=gnu99 -march=native" ./configure
 fi
 
 make -j3
