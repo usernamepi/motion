@@ -169,6 +169,24 @@ emulate_motion off
 # Command to be executed when a movie file is closed.
 ; on_movie_end value
 
+# executed when motion is detected in the predefined area indicated in the area_detect option
+; on_area_detected value
+
+# executed when a lost camera is found
+; on_camera_found value
+
+# executed when a camera can't be opened or if it is lost
+; on_camera_lost value
+
+# executed when motion is detected
+; on_motion_detected value
+
+# executed when a new movie is being created
+; on_movie_start value
+
+# executed when a picture is saved
+; on_picture_save value
+
 
 ############################################################
 # Picture output configuration parameters
@@ -207,6 +225,7 @@ movie_filename %t-%v-%Y%m%d%H%M%S
 movie_extpipe_use off
 
 # External program (full path and opts) to pipe raw video to
+;movie_extpipe x264 - --input-res %wx%h --fps %fps --crf 24 --preset ultrafast --quiet -o %f.mp4
 ;movie_extpipe x264 - --input-res %wx%h --fps %fps --bitrate 2000 --preset ultrafast --quiet -o %f.mp4
 ;movie_extpipe mencoder -demuxer rawvideo -rawvideo w=%w:h=%h:fps=%fps -ovc x264 -x264encopts preset=ultrafast -of lavf -o %f.mp4 - -fps %fps
 ;movie_extpipe ffmpeg -y -f rawvideo -pix_fmt yuv420p -video_size %wx%h -framerate %fps -i pipe:0 -vcodec libx264 -preset ultrafast -f mp4 %f.mp4
@@ -246,6 +265,11 @@ webcontrol_localhost on
 # Type of configuration options to allow via the webcontrol.
 webcontrol_parms 0
 
+# The type of webcontrol interface to provide.
+# The value of 0 provides a traditional web page interface using html/css.
+# The value of 1 provides a text only interface suitable for programmatic access.
+# The value of 2 provides the legacy web control interface
+webcontrol_interface 0
 
 ############################################################
 # Live stream configuration parameters
@@ -259,35 +283,24 @@ stream_localhost on
 
 
 ############################################################
-# Scripts
+# Database configuration parameters
 ############################################################
 
-# executed when motion is detected in the predefined area indicated in the area_detect option
-; on_area_detected value
+#database_type mysql
+#database_dbname value
+#database_host localhost
+#database_port 3306
+#database_user value
+#database_password value
 
-# executed when a lost camera is found
-; on_camera_found value
+#sql_log_picture on
+#sql_log_snapshot on
+#sql_log_movie on
+#sql_log_timelapse on
 
-# executed when a camera can't be opened or if it is lost
-; on_camera_lost value
-
-# executed when an event ends
-; on_event_end value
-
-# executed at the start of an event
-; on_event_start value
-
-# executed when motion is detected
-; on_motion_detected value
-
-# executed after a new movie was created
-; on_movie_end value
-
-# executed when a new movie is being created
-; on_movie_start value
-
-# executed when a picture is saved
-; on_picture_save value
+#sql_query insert into table values(1)
+#sql_query_start insert into table values(2)
+#sql_query_stop insert into table values(3)
 
 
 ##############################################################
