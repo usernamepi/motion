@@ -198,6 +198,9 @@ picture_output off
 # File name(without extension) for pictures relative to target directory
 picture_filename %Y%m%d%H%M%S-%q
 
+# File name and optionally the path for the snapshots relative to target_dir
+snapshot_filename %v-%Y%m%d%H%M%S-snapshot
+
 
 ############################################################
 # Movie output configuration parameters
