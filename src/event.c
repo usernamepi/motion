@@ -858,7 +858,6 @@ static void event_create_extpipe(struct context *cnt,
             return ;
 
         mystrftime(cnt, stamp, sizeof(stamp), cnt->conf.movie_extpipe, currenttime_tv, cnt->extpipefilename, 0);
-        snprintf(cnt->extpipecmdline, PATH_MAX - 1, "%s", stamp);
 
         retcd = snprintf(cnt->extpipecmdline, PATH_MAX, "%s", stamp);
         if ((retcd < 0 ) || (retcd >= PATH_MAX)){
