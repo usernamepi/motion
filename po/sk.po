@@ -6,39 +6,39 @@ msgid ""
 msgstr ""
 "Project-Id-Version: 4.x\n"
 "Report-Msgid-Bugs-To: https://motion-project.github.io\n"
-"POT-Creation-Date: 2019-09-28 09:39-0600\n"
-"PO-Revision-Date: 2018-10-13 12:02-0600\n"
-"Last-Translator: MrDave <MotionMrDave@gmail.com>\n"
-"Language-Team: MrDave <MotionMrDave@gmail.com>\n"
-"Language: ko\n"
+"POT-Creation-Date: 2019-09-28 10:15-0600\n"
+"PO-Revision-Date: 2018-12-17 06:35+0100\n"
+"Last-Translator: Dusan Mikulas <dmkil22@gmail.com>\n"
+"Language-Team: Dusan Mikulas <dmkil22@gmail.com>\n"
+"Language: sk\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"X-Generator: Poedit 2.0.6\n"
+"X-Generator: Poedit 2.2\n"
 
 #: src/conf.c
 #, c-format
 msgid "Unknown config option \"%s\""
-msgstr ""
+msgstr "Neznáme  nastavenie\"%s\""
 
 #: src/conf.c
 #, c-format
 msgid "Writing config file to %s"
-msgstr ""
+msgstr "Zápis konfig. súboru %s"
 
 #: src/conf.c
 #, c-format
 msgid "Configfile %s not found - trying defaults."
-msgstr ""
+msgstr "Konfig. súbor %s nenájdený - skúste predvolený."
 
 #: src/conf.c
 msgid "Error getcwd"
-msgstr ""
+msgstr "Chyba getcwd"
 
 #: src/conf.c
 #, c-format
 msgid "could not open configfile %s"
-msgstr ""
+msgstr "Problém otvoriť konfig. súbor %s"
 
 #: src/conf.c
 #, c-format
@@ -48,21 +48,21 @@ msgstr ""
 #: src/conf.c
 #, c-format
 msgid "Processing thread 0 - config file %s"
-msgstr ""
+msgstr "Vlákno procesu 0 - konfig súbor %s"
 
 #: src/conf.c
 msgid "No config file to process, using default values"
-msgstr ""
+msgstr "Konfig. súbor nie je spustený, použijú sa predvolené hodnoty "
 
 #: src/conf.c
 #, c-format
 msgid "Writing configuration parameters from all files (%d):"
-msgstr ""
+msgstr "Zapísanie konfig. parametrov zo všetkých súborov (%d):"
 
 #: src/conf.c
 #, c-format
 msgid "Thread %d - Config file: %s"
-msgstr ""
+msgstr "Vlákno %d - konfig. súbor: %s"
 
 #: src/conf.c
 #, c-format
@@ -71,15 +71,15 @@ msgstr ""
 
 #: src/conf.c
 msgid "Unable to locate vid_control_params"
-msgstr ""
+msgstr "Nemožné určiť vid_control_params"
 
 #: src/conf.c
 msgid "No value provided to put into vid_control_params"
-msgstr ""
+msgstr "Nie je hodnota na vloženie do vid_control_params"
 
 #: src/conf.c
 msgid "Error compiling regex in copy_uri"
-msgstr ""
+msgstr "Chzba prekladu regex v copy_uri"
 
 #: src/conf.c
 msgid "Invalid origin for cors_header in copy_uri"
@@ -88,7 +88,7 @@ msgstr ""
 #: src/conf.c
 #, c-format
 msgid "Processing config file %s"
-msgstr ""
+msgstr "Spracovávaný konfig. súbor %s"
 
 #: src/conf.c
 #, c-format
@@ -103,7 +103,7 @@ msgstr ""
 #: src/conf.c
 #, c-format
 msgid "Processing camera config file %s"
-msgstr ""
+msgstr "Spracovávaný konfig. súbor kamery %s"
 
 #: src/conf.c
 msgid "daemon"
@@ -736,22 +736,22 @@ msgstr ""
 #: src/event.c src/track.c
 #, c-format
 msgid "Unable to start external command '%s'"
-msgstr ""
+msgstr "Nedá sa spustiť externý príkaz '%s'"
 
 #: src/event.c src/track.c
 #, c-format
 msgid "Executing external command '%s'"
-msgstr ""
+msgstr "Spustenie externého príkazu '%s'"
 
 #: src/event.c
 #, c-format
 msgid "File of type %ld saved to: %s"
-msgstr ""
+msgstr "Súbor typu %ld je zapísaný do: %s"
 
 #: src/event.c
 #, c-format
 msgid "Mysql query failed %s error code %d"
-msgstr ""
+msgstr "Príkaz bol neúspešný Mysql %s, kód chyby %d"
 
 #: src/event.c
 #, c-format
@@ -759,11 +759,13 @@ msgid ""
 "Cannot reconnect to MySQL database %s on host %s with user %s MySQL error "
 "was %s"
 msgstr ""
+"Problém so znovupripojením na MySql db  %s host %s  uživateľ %s MySQL chyba "
+"bol %s"
 
 #: src/event.c
 #, c-format
 msgid "Re-Connection to Mysql database '%s' Succeed"
-msgstr ""
+msgstr "Úspešné znovupripojenie na MySql db '%s' "
 
 #: src/event.c
 #, c-format
@@ -773,41 +775,41 @@ msgstr ""
 #: src/event.c src/motion.c
 #, c-format
 msgid "Connection to PostgreSQL database '%s' failed: %s"
-msgstr ""
+msgstr "Pripojenie na PostgreSQL '%s' chybné : %s"
 
 #: src/event.c
 #, c-format
 msgid "Re-Connection to PostgreSQL database '%s' failed: %s"
-msgstr ""
+msgstr "Znovupripojenie na PostgreSQL db '%s' chybné: %s"
 
 #: src/event.c
 #, c-format
 msgid "Re-Connection to PostgreSQL database '%s' Succeed"
-msgstr ""
+msgstr "Znovupripojenie naPostgreSQL '%s' úspešné"
 
 #: src/event.c
 #, c-format
 msgid "SQLite error was %s"
-msgstr ""
+msgstr "Chyba SQLite bola \"%s\""
 
 #: src/event.c
 msgid "Failed to put image into video pipe"
-msgstr ""
+msgstr "Problém vložiť obrázok do video rúry"
 
 #: src/event.c
 #, c-format
 msgid "Could not create symbolic link [%s]"
-msgstr ""
+msgstr "Problém vytvoriť symbolickú linku [%s]"
 
 #: src/event.c
 #, c-format
 msgid "Error creating preview pipe name %d %s"
-msgstr ""
+msgstr "Chyba zápisu do rúry, chybný stav %d %s"
 
 #: src/event.c
 #, c-format
 msgid "Error creating file name base %d %s"
-msgstr ""
+msgstr "Chyba zápisu do rúry, chybný stav %d %s"
 
 #: src/event.c
 #, c-format
@@ -827,17 +829,17 @@ msgstr ""
 #: src/event.c
 #, c-format
 msgid "no write access to target directory %s"
-msgstr ""
+msgstr "nie sú práva na prístop do adresára %s"
 
 #: src/event.c
 #, c-format
 msgid "path not found, trying to create it %s ..."
-msgstr ""
+msgstr "cesta nenájdená, pokúšam sa ju vytvoriť %s ..."
 
 #: src/event.c
 #, c-format
 msgid "error accesing path %s"
-msgstr ""
+msgstr "chyba prístupu na cestu %s"
 
 #: src/event.c
 #, c-format
@@ -851,21 +853,21 @@ msgstr ""
 
 #: src/event.c
 msgid "popen failed"
-msgstr ""
+msgstr "popen zlyhalo"
 
 #: src/event.c
 msgid "Using extpipe"
-msgstr ""
+msgstr "pužítie extpipe"
 
 #: src/event.c
 #, c-format
 msgid "Error writing in pipe , state error %d"
-msgstr ""
+msgstr "Chyba zápisu do rúry, chybný stav %d"
 
 #: src/event.c
 #, c-format
 msgid "pipe %s not created or closed already "
-msgstr ""
+msgstr "rúra %s nevytvorená, alebo už zatvorená "
 
 #: src/event.c
 #, c-format
@@ -888,15 +890,15 @@ msgstr ""
 
 #: src/event.c
 msgid "Timelapse using mpg codec."
-msgstr ""
+msgstr "Timelapse pužíva codec mpg."
 
 #: src/event.c
 msgid "Events will be appended to file"
-msgstr ""
+msgstr "Udalosť bude zapísana do súboru"
 
 #: src/event.c
 msgid "Timelapse using mpeg4 codec."
-msgstr ""
+msgstr "Timelapse pužíva codec mpeg4."
 
 #: src/event.c
 msgid "Events will be trigger new files"
@@ -905,21 +907,23 @@ msgstr ""
 #: src/event.c
 #, c-format
 msgid "ffopen_open error creating (timelapse) file [%s]"
-msgstr ""
+msgstr "ffopen_open chyba vytvorenia (timelapse) súboru [%s]"
 
 #: src/event.c
 msgid "Error encoding image"
-msgstr ""
+msgstr "Chyba kódovania obrázku"
 
 #: src/ffmpeg.c
 msgid "Failed to allocate memory for codec name"
-msgstr ""
+msgstr "Chyba získania pamäte pre názov kodeku"
 
 #: src/ffmpeg.c
 msgid ""
 "The frame rate specified is too high for the ffmpeg movie type specified. "
 "Choose a different ffmpeg container or lower framerate."
 msgstr ""
+"Obnovovací kmitočet je príliš veľký pre špecifikované ffmpeg video. Zmeň "
+"ffmpeg kontainer, alebo zníž obnovovací kmitočet."
 
 #: src/ffmpeg.c
 msgid "Error setting base file name"
@@ -932,16 +936,16 @@ msgstr ""
 
 #: src/ffmpeg.c
 msgid "Error setting file name"
-msgstr ""
+msgstr "Chyba kódovania obrázku"
 
 #: src/ffmpeg.c
 #, c-format
 msgid "codec option value %s is not supported"
-msgstr ""
+msgstr "volená hodnota kodeka %s nie je podporovaná"
 
 #: src/ffmpeg.c
 msgid "Could not get the codec"
-msgstr ""
+msgstr "Nie je možné získať kodek"
 
 #: src/ffmpeg.c
 #, c-format
@@ -1042,7 +1046,7 @@ msgstr ""
 #: src/ffmpeg.c
 #, c-format
 msgid "could not alloc buffers %s"
-msgstr ""
+msgstr "Problém otvoriť konfig. súbor %s"
 
 #: src/ffmpeg.c
 #, c-format
@@ -3788,25 +3792,25 @@ msgstr ""
 
 #: src/video_v4l2.c
 msgid "Errors occurred during device select"
-msgstr ""
+msgstr "Počas výberu zariadenia nastala chyba"
 
 #: src/video_v4l2.c
 #, c-format
 msgid "Using videodevice %s and input %d"
-msgstr ""
+msgstr "Používa videozariadenie %s a vstup %d"
 
 #: src/video_v4l2.c
 #, c-format
 msgid "Failed to open video device %s"
-msgstr ""
+msgstr "Chyba otvorenia video zariadenia %s"
 
 #: src/video_v4l2.c
 msgid "Not a V4L2 device?"
-msgstr ""
+msgstr "Pas un appareil V4L2 ?"
 
 #: src/video_v4l2.c
 msgid "Device does not support capturing."
-msgstr ""
+msgstr "Zariadenie nepodporuje získavanie (capturing)."
 
 #: src/video_v4l2.c
 #, c-format
@@ -3825,26 +3829,26 @@ msgstr ""
 
 #: src/video_v4l2.c
 msgid "V4L2 is not enabled"
-msgstr ""
+msgstr "V4L2 nie je aktivovaný"
 
 #: src/video_v4l2.c
 msgid "V4L2 is not enabled."
-msgstr ""
+msgstr "V4L2 nie je aktivovaný."
 
 #: src/video_v4l2.c
 #, c-format
 msgid "Testing palette %s (%c%c%c%c)"
-msgstr ""
+msgstr "Testovacia paleta %s (%c%c%c%c)"
 
 #: src/video_v4l2.c
 #, c-format
 msgid "  Width: %d, Height %d"
-msgstr ""
+msgstr "  Šírka: %d, Výška %d"
 
 #: src/video_v4l2.c
 #, c-format
 msgid "    Framerate %d/%d"
-msgstr ""
+msgstr "    Kmitočet obrázkov %d/%d"
 
 #: src/webu.c
 #, c-format
@@ -3886,11 +3890,11 @@ msgstr ""
 
 #: src/webu.c
 msgid "Native Language : on"
-msgstr ""
+msgstr "Národný jazyk : zapnutý"
 
 #: src/webu.c
 msgid "Native Language : off"
-msgstr ""
+msgstr "Národný jazyk : Vypnutý"
 
 #: src/webu.c
 msgid "Set the value to null/zero"
@@ -4026,127 +4030,127 @@ msgstr ""
 
 #: src/webu_html.c
 msgid "Cameras"
-msgstr "카메라"
+msgstr "Caméras"
 
 #: src/webu_html.c
 msgid "Camera"
-msgstr "카메라"
+msgstr "Caméra"
 
 #: src/webu_html.c
 msgid "All"
-msgstr "모든"
+msgstr "Toutes"
 
 #: src/webu_html.c
 msgid "Action"
-msgstr "동작"
+msgstr "Action"
 
 #: src/webu_html.c
 msgid "Start Event"
-msgstr "시작 이벤트"
+msgstr "Štart udalostí"
 
 #: src/webu_html.c
 msgid "End Event"
-msgstr "종료 이벤트"
+msgstr "Koniec udalostí"
 
 #: src/webu_html.c
 msgid "Snapshot"
-msgstr "스냅 샷"
+msgstr "Momentka"
 
 #: src/webu_html.c
 msgid "Change Configuration"
-msgstr "구성 변경"
+msgstr "Zmena konfigurácie"
 
 #: src/webu_html.c
 msgid "Write Configuration"
-msgstr "쓰기 구성"
+msgstr "Zápis konfigurácie"
 
 #: src/webu_html.c
 msgid "Tracking"
-msgstr "추적"
+msgstr "sledovanie"
 
 #: src/webu_html.c
 msgid "Pause"
-msgstr "일시 중지"
+msgstr "Pauza"
 
 #: src/webu_html.c
 msgid "Start"
-msgstr "스타트"
+msgstr "Štart"
 
 #: src/webu_html.c
 msgid "Restart"
-msgstr "재시작"
+msgstr "Reštart"
 
 #: src/webu_html.c
 msgid "Quit"
-msgstr "종료"
+msgstr ""
 
 #: src/webu_html.c
 msgid "Help"
-msgstr "도움말"
+msgstr "Pomoc"
 
 #: src/webu_html.c
 msgid "No Configuration Options"
-msgstr "구성 옵션 없음"
+msgstr "Nie sú konfiguračné možnosti"
 
 #: src/webu_html.c
 msgid "Limited Configuration Options"
-msgstr "제한된 구성 옵션"
+msgstr "Obmedzené konfiguračné možnosti"
 
 #: src/webu_html.c
 msgid "Advanced Configuration Options"
-msgstr "고급 구성 옵션"
+msgstr "Rozšírené konfiguračné možnosti"
 
 #: src/webu_html.c
 msgid "Restricted Configuration Options"
-msgstr "기밀 구성 옵션"
+msgstr "Reštrikčné konfiguračné možnosti"
 
 #: src/webu_html.c
 msgid "All Cameras"
-msgstr "모든 카메라"
+msgstr "Všetky kamery"
 
 #: src/webu_html.c
 msgid "Not running"
-msgstr "활성화되지 않은"
+msgstr "Nebežiace"
 
 #: src/webu_html.c
 msgid "Lost connection"
-msgstr "연결이 끊어졌습니다"
+msgstr "Strata pripojenia"
 
 #: src/webu_html.c
 msgid "Paused"
-msgstr "일시 중지됨"
+msgstr "Pauza"
 
 #: src/webu_html.c
 msgid "Active"
-msgstr "유효한"
+msgstr "Aktívne"
 
 #: src/webu_html.c
 msgid "Select option"
-msgstr "옵션 선택"
+msgstr "nastaviť možnosti"
 
 #: src/webu_html.c
 msgid "Save"
-msgstr "저장"
+msgstr "Záapis"
 
 #: src/webu_html.c
 msgid "Pan/Tilt"
-msgstr "회전 / 틸트"
+msgstr "Rotácia / sklon"
 
 #: src/webu_html.c
 msgid "Absolute Change"
-msgstr "절대 변경"
+msgstr "Absolútna zmena"
 
 #: src/webu_html.c
 msgid "Center"
-msgstr "센터"
+msgstr "Stred"
 
 #: src/webu_html.c
 msgid "Pan"
-msgstr "회전"
+msgstr "Rotácia"
 
 #: src/webu_html.c
 msgid "Tilt"
-msgstr "틸트"
+msgstr "Sklon"
 
 #: src/webu_stream.c
 #, c-format
@@ -4170,15 +4174,12 @@ msgstr ""
 
 #: src/webu_stream.c
 msgid "Could not get image to stream."
-msgstr ""
+msgstr "Nemožné dostať obrázok do stream-u."
 
 #: src/webu_text.c
 #, c-format
 msgid "'%s' option is depreciated.  New option name is `%s'"
 msgstr ""
 
-#~ msgid "Make Movie"
-#~ msgstr "영화 만들기"
-
-#~ msgid "All  "
-#~ msgstr "전체"
+#~ msgid "ffmpeg_video_codec option value %s is not supported"
+#~ msgstr "ffmpeg_video_codec volená hodnota %s nie je podporovaná"
