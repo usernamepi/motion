@@ -209,9 +209,6 @@ snapshot_filename %v-%Y%m%d%H%M%S-snapshot
 # Create movies of motion events.
 movie_output on
 
-# Maximum length of movie in seconds.
-movie_max_time 60
-
 # The encoding quality of the movie. (0=use bitrate. 1=worst quality, 100=best)
 movie_quality 45
 
