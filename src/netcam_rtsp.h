@@ -24,6 +24,10 @@ struct imgsize_context {
 #include <libavutil/avutil.h>
 #include <libavutil/imgutils.h>
 #include <libswscale/swscale.h>
+#if (MYFFVER >= 57083)
+    #include "libavutil/hwcontext.h"
+#endif
+
 struct packet_item{
     AVPacket                  packet;
     int64_t                   idnbr;
@@ -35,6 +39,7 @@ struct packet_item{
 struct rtsp_context {
     AVFormatContext          *format_context;        /* Main format context for the camera */
     AVCodecContext           *codec_context;         /* Codec being sent from the camera */
+    AVStream                 *strm;
     AVFrame                  *frame;                 /* Reusable frame for images from camera */
     AVFrame                  *swsframe_in;           /* Used when resizing image sent from camera */
     AVFrame                  *swsframe_out;          /* Used when resizing image sent from camera */
@@ -48,6 +53,12 @@ struct rtsp_context {
     AVDictionary             *opts;                  /* AVOptions when opening the format context */
     int                       swsframe_size;         /* The size of the image after resizing */
     int                       video_stream_index;    /* Stream index associated with video from camera */
+    #if (MYFFVER >= 57083)
+        enum AVHWDeviceType       hw_type;
+        enum AVPixelFormat        hw_pix_fmt;
+        AVBufferRef               *hw_device_ctx;
+    #endif
+    AVCodec                   *decoder;
 
     enum RTSP_STATUS          status;                /* Status of whether the camera is connecting, closed, etc*/
     struct timeval            interruptstarttime;    /* The time set before calling the av functions */
@@ -72,12 +83,15 @@ struct rtsp_context {
 
     int                       rtsp_uses_tcp;    /* Flag from config for whether to use tcp transport */
     int                       v4l2_palette;     /* Palette from config for v4l2 devices */
-    int                       framerate;        /* Frames per second from configuration file */
     int                       reconnect_count;  /* Count of the times reconnection is tried*/
     int                       src_fps;          /* The fps provided from source*/
+    int                       capture_rate;     /* The framerate for the capture rate*/
+    int64_t                   capture_nbr;      /* The number of images captured since last av_read_play */
 
     struct timeval            frame_prev_tm;    /* The time set before calling the av functions */
     struct timeval            frame_curr_tm;    /* Time during the interrupt to determine duration since start*/
+
+    struct params_context    *parameters;       /* User specified parameters for the camera */
     struct config            *conf;             /* Pointer to conf parms of parent cnt*/
     char                      *decoder_nm;      /* User requested decoder */
     struct context            *cnt;

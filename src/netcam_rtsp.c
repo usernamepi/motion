@@ -38,8 +38,8 @@ static int netcam_rtsp_check_pixfmt(struct rtsp_context *rtsp_data){
     int retcd;
 
     retcd = -1;
-    if ((rtsp_data->codec_context->pix_fmt == MY_PIX_FMT_YUV420P) ||
-        (rtsp_data->codec_context->pix_fmt == MY_PIX_FMT_YUVJ420P)) retcd = 0;
+    if (((enum AVPixelFormat)rtsp_data->frame->format == MY_PIX_FMT_YUV420P) ||
+        ((enum AVPixelFormat)rtsp_data->frame->format == MY_PIX_FMT_YUVJ420P)) retcd = 0;
 
     return retcd;
 
@@ -86,6 +86,9 @@ static void netcam_rtsp_close_context(struct rtsp_context *rtsp_data){
     if (rtsp_data->codec_context    != NULL) my_avcodec_close(rtsp_data->codec_context);
     if (rtsp_data->format_context   != NULL) avformat_close_input(&rtsp_data->format_context);
     if (rtsp_data->transfer_format != NULL) avformat_close_input(&rtsp_data->transfer_format);
+    #if (MYFFVER >= 57083)
+        if (rtsp_data->hw_device_ctx   != NULL) av_buffer_unref(&rtsp_data->hw_device_ctx);
+    #endif
     netcam_rtsp_null_context(rtsp_data);
 
 }
@@ -209,6 +212,106 @@ static void netcam_rtsp_pktarray_add(struct rtsp_context *rtsp_data){
 
 }
 
+static int netcam_decode_sw(struct rtsp_context *rtsp_data){
+
+    #if ( MYFFVER >= 57041)
+        int retcd;
+        char errstr[128];
+
+        retcd = avcodec_receive_frame(rtsp_data->codec_context, rtsp_data->frame);
+        if ((rtsp_data->interrupted) || (rtsp_data->finish) || (retcd < 0) ){
+            if (retcd == AVERROR(EAGAIN)){
+                retcd = 0;
+            } else if (retcd == AVERROR_INVALIDDATA) {
+                MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                    ,_("%s: Ignoring packet with invalid data")
+                    ,rtsp_data->cameratype);
+                retcd = 0;
+            } else if (retcd < 0) {
+                av_strerror(retcd, errstr, sizeof(errstr));
+                    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                        ,_("%s: Rec frame error: %s")
+                        ,rtsp_data->cameratype, errstr);
+                retcd = -1;
+            } else {
+                retcd = -1;
+            }
+            return retcd;
+        }
+
+        return 1;
+    #else
+        int retcd, check=0;
+        char errstr[128];
+
+        retcd = avcodec_decode_video2(rtsp_data->codec_context, rtsp_data->frame, &check, &rtsp_data->packet_recv);
+        if ((rtsp_data->interrupted) || (rtsp_data->finish)) return -1;
+
+        if (retcd == AVERROR_INVALIDDATA) {
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Ignoring packet with invalid data"));
+            return 0;
+        }
+
+        if (retcd < 0) {
+            av_strerror(retcd, errstr, sizeof(errstr));
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Error decoding packet: %s"),errstr);
+            return -1;
+        }
+
+        if (check == 0 || retcd == 0) return 0;
+
+        return 1;
+
+    #endif
+}
+
+static int netcam_decode_vaapi(struct rtsp_context *rtsp_data){
+
+    #if ( MYFFVER >= 57083)
+
+        int retcd;
+        char errstr[128];
+        AVFrame *hw_frame = NULL;
+
+        hw_frame = my_frame_alloc();
+
+        retcd = avcodec_receive_frame(rtsp_data->codec_context, hw_frame);
+        if ((rtsp_data->interrupted) || (rtsp_data->finish) || (retcd < 0) ){
+            if (retcd == AVERROR(EAGAIN)){
+                retcd = 0;
+            } else if (retcd == AVERROR_INVALIDDATA) {
+                MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                    ,_("%s: Ignoring packet with invalid data")
+                    ,rtsp_data->cameratype);
+                retcd = 0;
+            } else if (retcd < 0) {
+                av_strerror(retcd, errstr, sizeof(errstr));
+                    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                        ,_("%s: Rec frame error: %s")
+                        ,rtsp_data->cameratype, errstr);
+                retcd = -1;
+            } else {
+                retcd = -1;
+            }
+            my_frame_free(hw_frame);
+            return retcd;
+        }
+        rtsp_data->frame->format=AV_PIX_FMT_YUV420P;
+        retcd = av_hwframe_transfer_data(rtsp_data->frame, hw_frame, 0);
+        if (retcd < 0) {
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: Error transferring HW decoded to system memory")
+                ,rtsp_data->cameratype);
+            return -1;
+        }
+        my_frame_free(hw_frame);
+
+        return 1;
+    #else
+        (void)rtsp_data;
+        return 1;
+    #endif
+}
 
 /* netcam_rtsp_decode_video
  *
@@ -219,79 +322,55 @@ static void netcam_rtsp_pktarray_add(struct rtsp_context *rtsp_data){
  */
 static int netcam_rtsp_decode_video(struct rtsp_context *rtsp_data){
 
-#if (LIBAVFORMAT_VERSION_MAJOR >= 58) || ((LIBAVFORMAT_VERSION_MAJOR == 57) && (LIBAVFORMAT_VERSION_MINOR >= 41))
+    #if ( MYFFVER >= 57041)
 
-    int retcd;
-    char errstr[128];
+        int retcd;
+        char errstr[128];
 
-    /* The Invalid data problem comes frequently.  Usually at startup of rtsp cameras.
-     * We now ignore those packets so this function would need to fail on a different error.
-     * We should consider adding a maximum count of these errors and reset every time
-     * we get a good image.
-     */
-    if (rtsp_data->finish) return 0;   /* This just speeds up the shutdown time */
+        /* The Invalid data problem comes frequently.  Usually at startup of rtsp cameras.
+        * We now ignore those packets so this function would need to fail on a different error.
+        * We should consider adding a maximum count of these errors and reset every time
+        * we get a good image.
+        */
+        if (rtsp_data->finish) return 0;   /* This just speeds up the shutdown time */
 
-    retcd = avcodec_send_packet(rtsp_data->codec_context, &rtsp_data->packet_recv);
-    if ((rtsp_data->interrupted) || (rtsp_data->finish)) return -1;
-    if (retcd == AVERROR_INVALIDDATA) {
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("Ignoring packet with invalid data"));
-        return 0;
-    }
-    if (retcd < 0 && retcd != AVERROR_EOF){
-        av_strerror(retcd, errstr, sizeof(errstr));
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("Error sending packet to codec: %s"), errstr);
-        return -1;
-    }
+        retcd = avcodec_send_packet(rtsp_data->codec_context, &rtsp_data->packet_recv);
+        if ((rtsp_data->interrupted) || (rtsp_data->finish)) return -1;
+        if (retcd == AVERROR_INVALIDDATA) {
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("Ignoring packet with invalid data"));
+            return 0;
+        }
+        if (retcd < 0 && retcd != AVERROR_EOF){
+            av_strerror(retcd, errstr, sizeof(errstr));
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("Error sending packet to codec: %s"), errstr);
+            return -1;
+        }
 
-    retcd = avcodec_receive_frame(rtsp_data->codec_context, rtsp_data->frame);
-    if ((rtsp_data->interrupted) || (rtsp_data->finish)) return -1;
+        if (!strcasecmp(rtsp_data->decoder_nm,"vaapi")) {
+            retcd = netcam_decode_vaapi(rtsp_data);
+        } else {
+            retcd = netcam_decode_sw(rtsp_data);
+        }
 
-    if (retcd == AVERROR(EAGAIN)) return 0;
+        return retcd;
 
-    if (retcd == AVERROR_INVALIDDATA) {
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("Ignoring packet with invalid data"));
-        return 0;
-    }
+    #else
 
-    if (retcd < 0) {
-        av_strerror(retcd, errstr, sizeof(errstr));
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("Error receiving frame from codec: %s"), errstr);
-        return -1;
-    }
+        int retcd;
 
-    return 1;
+        if (rtsp_data->finish) return 0;   /* This just speeds up the shutdown time */
 
-#else
+        if (!strcasecmp(rtsp_data->decoder_nm,"vaapi")){
+            retcd = netcam_decode_vaapi(rtsp_data);
+        } else {
+            retcd = netcam_decode_sw(rtsp_data);
+        }
 
-    int retcd;
-    int check = 0;
-    char errstr[128];
+        return retcd;
 
-    if (rtsp_data->finish) return 0;   /* This just speeds up the shutdown time */
-
-    retcd = avcodec_decode_video2(rtsp_data->codec_context, rtsp_data->frame, &check, &rtsp_data->packet_recv);
-    if ((rtsp_data->interrupted) || (rtsp_data->finish)) return -1;
-
-    if (retcd == AVERROR_INVALIDDATA) {
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Ignoring packet with invalid data"));
-        return 0;
-    }
-
-    if (retcd < 0) {
-        av_strerror(retcd, errstr, sizeof(errstr));
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Error decoding packet: %s"),errstr);
-        return -1;
-    }
-
-    if (check == 0 || retcd == 0) return 0;
-
-    return 1;
-
-#endif
+    #endif
 
 }
 
@@ -305,18 +384,18 @@ static int netcam_rtsp_decode_packet(struct rtsp_context *rtsp_data){
     retcd = netcam_rtsp_decode_video(rtsp_data);
     if (retcd <= 0) return retcd;
 
-    frame_size = my_image_get_buffer_size(rtsp_data->codec_context->pix_fmt
-                                          ,rtsp_data->codec_context->width
-                                          ,rtsp_data->codec_context->height);
+    frame_size = my_image_get_buffer_size((enum AVPixelFormat) rtsp_data->frame->format
+                                        ,rtsp_data->frame->width
+                                        ,rtsp_data->frame->height);
 
     netcam_check_buffsize(rtsp_data->img_recv, frame_size);
     netcam_check_buffsize(rtsp_data->img_latest, frame_size);
 
     retcd = my_image_copy_to_buffer(rtsp_data->frame
                                     ,(uint8_t *)rtsp_data->img_recv->ptr
-                                    ,rtsp_data->codec_context->pix_fmt
-                                    ,rtsp_data->codec_context->width
-                                    ,rtsp_data->codec_context->height
+                                    ,(enum AVPixelFormat) rtsp_data->frame->format
+                                    ,rtsp_data->frame->width
+                                    ,rtsp_data->frame->height
                                     ,frame_size);
     if ((retcd < 0) || (rtsp_data->interrupted)) {
         MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
@@ -329,117 +408,285 @@ static int netcam_rtsp_decode_packet(struct rtsp_context *rtsp_data){
     return frame_size;
 }
 
+static void netcam_hwdecoders(struct rtsp_context *rtsp_data){
+
+    #if ( MYFFVER >= 57083)
+
+        /* High Res pass through does not decode images into frames*/
+        if (rtsp_data->high_resolution && rtsp_data->passthrough) return;
+
+        if ((rtsp_data->hw_type == AV_HWDEVICE_TYPE_NONE) && (rtsp_data->first_image)) {
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: HW Devices: ")
+                , rtsp_data->cameratype);
+            while((rtsp_data->hw_type = av_hwdevice_iterate_types(rtsp_data->hw_type)) != AV_HWDEVICE_TYPE_NONE){
+                if (rtsp_data->hw_type == AV_HWDEVICE_TYPE_VAAPI) {
+                    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                        ,_("%s: %s (available)")
+                        , rtsp_data->cameratype
+                        , av_hwdevice_get_type_name(rtsp_data->hw_type));
+                } else {
+                    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                        ,_("%s: %s (not implemented)")
+                        , rtsp_data->cameratype
+                        , av_hwdevice_get_type_name(rtsp_data->hw_type));
+                }
+            }
+        }
+
+        return;
+    #else
+        if (strcasecmp(rtsp_data->decoder_nm,"NULL")){
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: netcam_decoder %s disabled.")
+                , rtsp_data->cameratype, rtsp_data->decoder_nm);
+            free(rtsp_data->decoder_nm);
+            rtsp_data->decoder_nm = mymalloc(5);
+            snprintf(rtsp_data->decoder_nm, 5, "%s","NULL");
+        }
+
+        return;
+    #endif
+}
+
+static enum AVPixelFormat netcam_getfmt_vaapi(AVCodecContext *avctx, const enum AVPixelFormat *pix_fmts) {
+    #if ( MYFFVER >= 57083)
+        const enum AVPixelFormat *p;
+        (void)avctx;
+
+        for (p = pix_fmts; *p != -1; p++) {
+            if (*p == AV_PIX_FMT_VAAPI) return *p;
+        }
+
+        MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO,_("Failed to get vaapi pix format"));
+        return AV_PIX_FMT_NONE;
+    #else
+        (void)avctx;
+        (void)pix_fmts;
+        return AV_PIX_FMT_NONE;
+    #endif
+}
+
 static void netcam_rtsp_decoder_error(struct rtsp_context *rtsp_data, int retcd, const char* fnc_nm){
 
     char errstr[128];
+    int indx;
 
-    if (retcd < 0){
-        av_strerror(retcd, errstr, sizeof(errstr));
+    if (rtsp_data->interrupted){
         MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: %s: %s,Interrupt %s")
-            ,rtsp_data->cameratype,fnc_nm, errstr, rtsp_data->interrupted ? _("True"):_("False"));
+            ,_("%s: Interrupted."),rtsp_data->cameratype);
     } else {
-        MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: %s: Failed,Interrupt %s"),rtsp_data->cameratype
-            ,fnc_nm, rtsp_data->interrupted ? _("True"):_("False"));
+        if (retcd < 0){
+            av_strerror(retcd, errstr, sizeof(errstr));
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: %s: %s")
+                ,rtsp_data->cameratype,fnc_nm, errstr);
+        } else {
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: %s: Failed"),rtsp_data->cameratype,fnc_nm);
+        }
     }
 
-    if (rtsp_data->decoder_nm != NULL){
+    if (strcasecmp(rtsp_data->decoder_nm,"NULL")){
         MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Ignoring user requested decoder %s"),rtsp_data->cameratype
-            ,rtsp_data->decoder_nm);
-        free(rtsp_data->cnt->netcam_decoder);
-        rtsp_data->cnt->netcam_decoder = NULL;
-        rtsp_data->decoder_nm = NULL;
+            ,_("%s: Decoder %s did not work.")
+            ,rtsp_data->cameratype, rtsp_data->decoder_nm);
+        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Ignoring and removing the user requested decoder %s")
+            ,rtsp_data->cameratype, rtsp_data->decoder_nm);
+
+        for (indx = 0; indx < rtsp_data->parameters->params_count; indx++)
+        {
+            if ( !strcmp(rtsp_data->parameters->params_array[indx].param_name,"decoder") ){
+                free(rtsp_data->parameters->params_array[indx].param_value);
+                rtsp_data->parameters->params_array[indx].param_value = mymalloc(5);
+                snprintf(rtsp_data->decoder_nm, 5, "%s","NULL");
+                break;
+            }
+        }
+
+        free(rtsp_data->decoder_nm);
+        rtsp_data->decoder_nm = mymalloc(5);
+        snprintf(rtsp_data->decoder_nm, 5, "%s","NULL");
     }
 
 }
 
+static int netcam_init_vaapi(struct rtsp_context *rtsp_data){
+
+    #if ( MYFFVER >= 57083)
+
+        int retcd;
+
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Initializing vaapi decoder"),rtsp_data->cameratype);
+
+        rtsp_data->hw_type = av_hwdevice_find_type_by_name("vaapi");
+        if (rtsp_data->hw_type == AV_HWDEVICE_TYPE_NONE){
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO,_("%s: Unable to find vaapi hw device")
+                , rtsp_data->cameratype);
+            netcam_rtsp_decoder_error(rtsp_data, 0, "av_hwdevice");
+            return -1;
+        }
+
+        rtsp_data->codec_context = avcodec_alloc_context3(rtsp_data->decoder);
+        if ((rtsp_data->codec_context == NULL) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_alloc_context3");
+            return -1;
+        }
+
+        retcd = avcodec_parameters_to_context(rtsp_data->codec_context,rtsp_data->strm->codecpar);
+        if ((retcd < 0) || (rtsp_data->interrupted)) {
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_parameters_to_context");
+            return -1;
+        }
+
+        rtsp_data->hw_pix_fmt = AV_PIX_FMT_VAAPI;
+        rtsp_data->codec_context->get_format  = netcam_getfmt_vaapi;
+        av_opt_set_int(rtsp_data->codec_context, "refcounted_frames", 1, 0);
+        rtsp_data->codec_context->sw_pix_fmt = AV_PIX_FMT_YUV420P;
+        rtsp_data->codec_context->hwaccel_flags=
+            AV_HWACCEL_FLAG_ALLOW_PROFILE_MISMATCH |
+            AV_HWACCEL_FLAG_IGNORE_LEVEL;
+
+        retcd = av_hwdevice_ctx_create(&rtsp_data->hw_device_ctx, rtsp_data->hw_type, NULL, NULL, 0);
+        if (retcd < 0){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "hwctx");
+            return -1;
+        }
+        rtsp_data->codec_context->hw_device_ctx = av_buffer_ref(rtsp_data->hw_device_ctx);
+
+        return 0;
+    #else
+        (void)rtsp_data;
+        (void)netcam_getfmt_vaapi;
+        return 0;
+    #endif
+}
+
+static int netcam_init_swdecoder(struct rtsp_context *rtsp_data) {
+
+    #if ( MYFFVER >= 57041)
+
+        int retcd;
+
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Initializing decoder"),rtsp_data->cameratype);
+
+        if (strcasecmp(rtsp_data->decoder_nm,"NULL")){
+            rtsp_data->decoder = avcodec_find_decoder_by_name(rtsp_data->decoder_nm);
+            if (rtsp_data->decoder == NULL) {
+                netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder_by_name");
+            } else {
+                MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO,_("%s: Using decoder %s")
+                    ,rtsp_data->cameratype, rtsp_data->decoder_nm);
+            }
+        }
+        if (rtsp_data->decoder == NULL) {
+            rtsp_data->decoder = avcodec_find_decoder(rtsp_data->strm->codecpar->codec_id);
+        }
+        if ((rtsp_data->decoder == NULL) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder");
+            return -1;
+        }
+
+        rtsp_data->codec_context = avcodec_alloc_context3(rtsp_data->decoder);
+        if ((rtsp_data->codec_context == NULL) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_alloc_context3");
+            return -1;
+        }
+
+        retcd = avcodec_parameters_to_context(rtsp_data->codec_context, rtsp_data->strm->codecpar);
+        if ((retcd < 0) || (rtsp_data->interrupted)) {
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_parameters_to_context");
+            return -1;
+        }
+
+        rtsp_data->codec_context->error_concealment = FF_EC_GUESS_MVS | FF_EC_DEBLOCK;
+        rtsp_data->codec_context->err_recognition = AV_EF_EXPLODE;
+
+        return 0;
+    #else
+        int retcd;
+        rtsp_data->codec_context = rtsp_data->strm->codec;
+        rtsp_data->decoder = avcodec_find_decoder(rtsp_data->codec_context->codec_id);
+        if ((rtsp_data->decoder == NULL) || (rtsp_data->interrupted)) {
+            netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder");
+            return -1;
+        }
+        retcd = avcodec_open2(rtsp_data->codec_context, rtsp_data->decoder, NULL);
+        if ((retcd < 0) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_open2");
+            return -1;
+        }
+        return 0;
+    #endif
+}
+
 static int netcam_rtsp_open_codec(struct rtsp_context *rtsp_data){
 
-#if (LIBAVFORMAT_VERSION_MAJOR >= 58) || ((LIBAVFORMAT_VERSION_MAJOR == 57) && (LIBAVFORMAT_VERSION_MINOR >= 41))
-    int retcd;
-    AVStream *st;
-    AVCodec *decoder = NULL;
+    #if ( MYFFVER >= 57041)
+        int retcd;
 
-    if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
+        if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
 
-    retcd = av_find_best_stream(rtsp_data->format_context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
-    if ((retcd < 0) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, retcd, "av_find_best_stream");
-        return -1;
-    }
-    rtsp_data->video_stream_index = retcd;
-    st = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
+        netcam_hwdecoders(rtsp_data);
 
-    if (rtsp_data->decoder_nm != NULL){
-        decoder = avcodec_find_decoder_by_name(rtsp_data->decoder_nm);
-        if (decoder == NULL) {
-            netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder_by_name");
-        } else {
-            MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO,_("%s: Using decoder %s")
-                ,rtsp_data->cameratype,rtsp_data->decoder_nm);
+        rtsp_data->decoder=NULL;
+        retcd = av_find_best_stream(rtsp_data->format_context
+            , AVMEDIA_TYPE_VIDEO, -1, -1, &rtsp_data->decoder, 0);
+        if ((retcd < 0) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "av_find_best_stream");
+            return -1;
         }
-    }
+        rtsp_data->video_stream_index = retcd;
+        rtsp_data->strm = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
 
-    if (decoder == NULL) {
-        decoder = avcodec_find_decoder(st->codecpar->codec_id);
-    }
+        if (!strcasecmp(rtsp_data->decoder_nm,"vaapi")){
+            retcd = netcam_init_vaapi(rtsp_data);
+        } else {
+            retcd = netcam_init_swdecoder(rtsp_data);
+        }
+        if ((retcd < 0) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "initdecoder");
+            return -1;
+        }
 
-    if ((decoder == NULL) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder");
-        return -1;
-    }
+        retcd = avcodec_open2(rtsp_data->codec_context,rtsp_data->decoder, NULL);
+        if ((retcd < 0) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_open2");
+            return -1;
+        }
 
-    rtsp_data->codec_context = avcodec_alloc_context3(decoder);
-    if ((rtsp_data->codec_context == NULL) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_alloc_context3");
-        return -1;
-    }
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Decoder opened"), rtsp_data->cameratype);
 
-    retcd = avcodec_parameters_to_context(rtsp_data->codec_context, st->codecpar);
-    if ((retcd < 0) || (rtsp_data->interrupted)) {
-        netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_alloc_context3");
-        return -1;
-    }
+        return 0;
+    #else
 
-    retcd = avcodec_open2(rtsp_data->codec_context, decoder, NULL);
-    if ((retcd < 0) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_open2");
-        return -1;
-    }
+        int retcd;
 
-    return 0;
-#else
+        if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
 
-    int retcd;
-    AVStream *st;
-    AVCodec *decoder = NULL;
+        netcam_hwdecoders(rtsp_data);
+        rtsp_data->decoder = NULL;
 
-    if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
+        retcd = av_find_best_stream(rtsp_data->format_context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
+        if ((retcd < 0) || (rtsp_data->interrupted)){
+            netcam_rtsp_decoder_error(rtsp_data, retcd, "av_find_best_stream");
+            return -1;
+        }
+        rtsp_data->video_stream_index = retcd;
+        rtsp_data->strm = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
 
-    retcd = av_find_best_stream(rtsp_data->format_context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
-    if ((retcd < 0) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, retcd, "av_find_best_stream");
-        return -1;
-    }
-    rtsp_data->video_stream_index = retcd;
-    st = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
-
-    rtsp_data->codec_context = st->codec;
-    decoder = avcodec_find_decoder(rtsp_data->codec_context->codec_id);
-    if ((decoder == NULL) || (rtsp_data->interrupted)) {
-        netcam_rtsp_decoder_error(rtsp_data, 0, "avcodec_find_decoder");
-        return -1;
-     }
-    retcd = avcodec_open2(rtsp_data->codec_context, decoder, NULL);
-    if ((retcd < 0) || (rtsp_data->interrupted)){
-        netcam_rtsp_decoder_error(rtsp_data, retcd, "avcodec_open2");
-        return -1;
-    }
-
-    return 0;
-#endif
+        /* This is currently always true for older ffmpeg until it is built */
+        if (!strcasecmp(rtsp_data->decoder_nm,"vaapi")){
+            retcd = netcam_init_vaapi(rtsp_data);
+        } else {
+            retcd = netcam_init_swdecoder(rtsp_data);
+        }
+        return retcd;
+    #endif
 
 
 }
@@ -502,6 +749,68 @@ static int netcam_rtsp_interrupt(void *ctx){
     return FALSE;
 }
 
+static int netcam_rtsp_open_sws(struct rtsp_context *rtsp_data){
+
+    if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
+
+    rtsp_data->swsframe_in = my_frame_alloc();
+    if (rtsp_data->swsframe_in == NULL) {
+        if (rtsp_data->status == RTSP_NOTCONNECTED){
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate swsframe_in."));
+        }
+        netcam_rtsp_close_context(rtsp_data);
+        return -1;
+    }
+
+    rtsp_data->swsframe_out = my_frame_alloc();
+    if (rtsp_data->swsframe_out == NULL) {
+        if (rtsp_data->status == RTSP_NOTCONNECTED){
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate swsframe_out."));
+        }
+        netcam_rtsp_close_context(rtsp_data);
+        return -1;
+    }
+
+    /*
+     *  The scaling context is used to change dimensions to config file and
+     *  also if the format sent by the camera is not YUV420.
+     */
+    rtsp_data->swsctx = sws_getContext(
+         rtsp_data->frame->width
+        ,rtsp_data->frame->height
+        ,(enum AVPixelFormat) rtsp_data->frame->format
+        ,rtsp_data->imgsize.width
+        ,rtsp_data->imgsize.height
+        ,MY_PIX_FMT_YUV420P
+        ,SWS_BICUBIC,NULL,NULL,NULL);
+    if (rtsp_data->swsctx == NULL) {
+        if (rtsp_data->status == RTSP_NOTCONNECTED){
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate scaling context."));
+        }
+        netcam_rtsp_close_context(rtsp_data);
+        return -1;
+    }
+
+    rtsp_data->swsframe_size = my_image_get_buffer_size(
+            MY_PIX_FMT_YUV420P
+            ,rtsp_data->imgsize.width
+            ,rtsp_data->imgsize.height);
+    if (rtsp_data->swsframe_size <= 0) {
+        if (rtsp_data->status == RTSP_NOTCONNECTED){
+            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Error determining size of frame out"));
+        }
+        netcam_rtsp_close_context(rtsp_data);
+        return -1;
+    }
+
+    /* the image buffers must be big enough to hold the final frame after resizing */
+    netcam_check_buffsize(rtsp_data->img_recv, rtsp_data->swsframe_size);
+    netcam_check_buffsize(rtsp_data->img_latest, rtsp_data->swsframe_size);
+
+    return 0;
+
+}
+
 static int netcam_rtsp_resize(struct rtsp_context *rtsp_data){
 
     int      retcd;
@@ -510,12 +819,16 @@ static int netcam_rtsp_resize(struct rtsp_context *rtsp_data){
 
     if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
 
+    if (rtsp_data->swsctx == NULL) {
+        if (netcam_rtsp_open_sws(rtsp_data) < 0) return -1;
+    }
+
     retcd=my_image_fill_arrays(
         rtsp_data->swsframe_in
         ,(uint8_t*)rtsp_data->img_recv->ptr
-        ,rtsp_data->codec_context->pix_fmt
-        ,rtsp_data->codec_context->width
-        ,rtsp_data->codec_context->height);
+        ,(enum AVPixelFormat)rtsp_data->frame->format
+        ,rtsp_data->frame->width
+        ,rtsp_data->frame->height);
     if (retcd < 0) {
         if (rtsp_data->status == RTSP_NOTCONNECTED){
             av_strerror(retcd, errstr, sizeof(errstr));
@@ -549,7 +862,7 @@ static int netcam_rtsp_resize(struct rtsp_context *rtsp_data){
         ,(const uint8_t* const *)rtsp_data->swsframe_in->data
         ,rtsp_data->swsframe_in->linesize
         ,0
-        ,rtsp_data->codec_context->height
+        ,rtsp_data->frame->height
         ,rtsp_data->swsframe_out->data
         ,rtsp_data->swsframe_out->linesize);
     if (retcd < 0) {
@@ -589,12 +902,34 @@ static int netcam_rtsp_resize(struct rtsp_context *rtsp_data){
 static int netcam_rtsp_read_image(struct rtsp_context *rtsp_data){
 
     int  size_decoded;
-    int  retcd;
-    int  haveimage;
+    int  retcd, errcnt, haveimage;
     char errstr[128];
     netcam_buff *xchg;
 
     if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
+
+    /*
+     * The av_read_play use here is a hack.  At low frame rates the function
+     * av_read_frame (further below in the while loop) consistently reports a EOF which puts the
+     * camera into a undesired disconnect/reconnect cycle.  While attempting to remedy this situation
+     * an alternative was considered whereby a "play" and "pause" would be placed around the while
+     * loop that is caputuring the image.  It was then observed that it was not even necessary to
+     * use the av_read_pause.  Simply having the av_read_play here was enough to keep the TCP connection
+     * open to the camera and allow for av_read_frame to return without the numerous EOFs.
+     *
+     * Addendum:  The downside of this av_read_play is that the more times it is called, the
+     * greater the number of decoder warning messages.  As a result, additional conditions are placed
+     * upon when the av_read_play is called.
+    */
+
+    if (rtsp_data->capture_rate < rtsp_data->src_fps) {
+        if (rtsp_data->capture_nbr > (rtsp_data->capture_rate - 1)) {
+            rtsp_data->capture_nbr = 0;
+            av_read_play(rtsp_data->format_context);
+        }
+    } else {
+        rtsp_data->capture_nbr = 0;
+    }
 
     av_init_packet(&rtsp_data->packet_recv);
     rtsp_data->packet_recv.data = NULL;
@@ -609,44 +944,57 @@ static int netcam_rtsp_read_image(struct rtsp_context *rtsp_data){
     rtsp_data->status = RTSP_READINGIMAGE;
     rtsp_data->img_recv->used = 0;
     size_decoded = 0;
+    errcnt = 0;
     haveimage = FALSE;
 
+    /* We allow for one failure on the av_read_frame.  Upon the second failure, we exit the function
+     * with a fail code to either end the program or possibly try to reconnnect to camera
+    */
     while ((!haveimage) && (!rtsp_data->interrupted)) {
         retcd = av_read_frame(rtsp_data->format_context, &rtsp_data->packet_recv);
-        if ((rtsp_data->interrupted) || (retcd < 0)) {
-            av_strerror(retcd, errstr, sizeof(errstr));
-            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-                ,_("%s: av_read_frame: %s ,Interrupt: %s")
-                ,rtsp_data->cameratype
-                ,errstr, rtsp_data->interrupted ? _("True"):_("False"));
+        if (retcd < 0 ) errcnt++;
+        if ((rtsp_data->interrupted) || (errcnt > 1)) {
+            if (rtsp_data->interrupted){
+                MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                    ,_("%s: Interrupted"),rtsp_data->cameratype);
+            } else {
+                av_strerror(retcd, errstr, sizeof(errstr));
+                MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                    ,_("%s: av_read_frame: %s")
+                    ,rtsp_data->cameratype, errstr);
+            }
             my_packet_unref(rtsp_data->packet_recv);
             netcam_rtsp_close_context(rtsp_data);
             return -1;
-        }
+        } else {
+            errcnt = 0;
+            if (rtsp_data->packet_recv.stream_index == rtsp_data->video_stream_index){
+                /* For a high resolution pass-through we don't decode the image */
+                if (rtsp_data->high_resolution && rtsp_data->passthrough){
+                    if (rtsp_data->packet_recv.data != NULL) size_decoded = 1;
+                } else {
+                    size_decoded = netcam_rtsp_decode_packet(rtsp_data);
+                }
+            }
 
-        if (rtsp_data->packet_recv.stream_index == rtsp_data->video_stream_index){
-            /* For a high resolution pass-through we don't decode the image */
-            if (rtsp_data->high_resolution && rtsp_data->passthrough){
-                if (rtsp_data->packet_recv.data != NULL) size_decoded = 1;
+            if (size_decoded > 0 ){
+                haveimage = TRUE;
+            } else if (size_decoded == 0){
+                /* Did not fail, just didn't get anything.  Try again */
+                my_packet_unref(rtsp_data->packet_recv);
+                av_init_packet(&rtsp_data->packet_recv);
+                rtsp_data->packet_recv.data = NULL;
+                rtsp_data->packet_recv.size = 0;
             } else {
-                size_decoded = netcam_rtsp_decode_packet(rtsp_data);
+                my_packet_unref(rtsp_data->packet_recv);
+                netcam_rtsp_close_context(rtsp_data);
+                return -1;
             }
         }
-
-        if (size_decoded > 0 ){
-            haveimage = TRUE;
-        } else if (size_decoded == 0){
-            /* Did not fail, just didn't get anything.  Try again */
-            my_packet_unref(rtsp_data->packet_recv);
-            av_init_packet(&rtsp_data->packet_recv);
-            rtsp_data->packet_recv.data = NULL;
-            rtsp_data->packet_recv.size = 0;
-        } else {
-            my_packet_unref(rtsp_data->packet_recv);
-            netcam_rtsp_close_context(rtsp_data);
-            return -1;
-        }
     }
+    rtsp_data->capture_nbr++;
+
+
     if (gettimeofday(&rtsp_data->img_recv->image_time, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
     }
@@ -658,8 +1006,8 @@ static int netcam_rtsp_read_image(struct rtsp_context *rtsp_data){
 
     /* Skip resize/pix format for high pass-through */
     if (!(rtsp_data->high_resolution && rtsp_data->passthrough)){
-        if ((rtsp_data->imgsize.width  != rtsp_data->codec_context->width) ||
-            (rtsp_data->imgsize.height != rtsp_data->codec_context->height) ||
+        if ((rtsp_data->imgsize.width  != rtsp_data->frame->width) ||
+            (rtsp_data->imgsize.height != rtsp_data->frame->height) ||
             (netcam_rtsp_check_pixfmt(rtsp_data) != 0) ){
             if (netcam_rtsp_resize(rtsp_data) < 0){
                 my_packet_unref(rtsp_data->packet_recv);
@@ -693,15 +1041,17 @@ static int netcam_rtsp_read_image(struct rtsp_context *rtsp_data){
 
 static int netcam_rtsp_ntc(struct rtsp_context *rtsp_data){
 
-    if ((rtsp_data->finish) || (!rtsp_data->first_image)) return 0;
+    if ((rtsp_data->finish) ||
+        (!rtsp_data->first_image) ||
+        (rtsp_data->high_resolution && rtsp_data->passthrough)) return 0;
 
-    if ((rtsp_data->imgsize.width  != rtsp_data->codec_context->width) ||
-        (rtsp_data->imgsize.height != rtsp_data->codec_context->height) ||
+    if ((rtsp_data->imgsize.width  != rtsp_data->frame->width) ||
+        (rtsp_data->imgsize.height != rtsp_data->frame->height) ||
         (netcam_rtsp_check_pixfmt(rtsp_data) != 0) ){
         MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, "");
         MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, "******************************************************");
-        if ((rtsp_data->imgsize.width  != rtsp_data->codec_context->width) ||
-            (rtsp_data->imgsize.height != rtsp_data->codec_context->height)) {
+        if ((rtsp_data->imgsize.width  != rtsp_data->frame->width) ||
+            (rtsp_data->imgsize.height != rtsp_data->frame->height)) {
             if (netcam_rtsp_check_pixfmt(rtsp_data) != 0) {
                 MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, _("The network camera is sending pictures in a different"));
                 MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, _("size than specified in the config and also a "));
@@ -719,7 +1069,7 @@ static int netcam_rtsp_ntc(struct rtsp_context *rtsp_data){
                 MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, _("to possibly lower CPU usage."));
             }
             MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, _("Netcam: %d x %d => Config: %d x %d")
-            ,rtsp_data->codec_context->width,rtsp_data->codec_context->height
+            ,rtsp_data->frame->width,rtsp_data->frame->height
             ,rtsp_data->imgsize.width,rtsp_data->imgsize.height);
         } else {
             MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO, _("The image sent is being "));
@@ -734,169 +1084,77 @@ static int netcam_rtsp_ntc(struct rtsp_context *rtsp_data){
 
 }
 
-static int netcam_rtsp_open_sws(struct rtsp_context *rtsp_data){
+static void netcam_rtsp_set_options(struct rtsp_context *rtsp_data){
 
-    if (rtsp_data->finish) return -1;   /* This just speeds up the shutdown time */
+    int indx;
+    char *tmpval;
 
-    rtsp_data->swsframe_in = my_frame_alloc();
-    if (rtsp_data->swsframe_in == NULL) {
-        if (rtsp_data->status == RTSP_NOTCONNECTED){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate swsframe_in."));
-        }
-        netcam_rtsp_close_context(rtsp_data);
-        return -1;
-    }
-
-    rtsp_data->swsframe_out = my_frame_alloc();
-    if (rtsp_data->swsframe_out == NULL) {
-        if (rtsp_data->status == RTSP_NOTCONNECTED){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate swsframe_out."));
-        }
-        netcam_rtsp_close_context(rtsp_data);
-        return -1;
-    }
-
-    /*
-     *  The scaling context is used to change dimensions to config file and
-     *  also if the format sent by the camera is not YUV420.
+    /* The log messages are a bit short in this function intentionally.
+     * The function name is printed in each message so that is being
+     * considered as part of the message.
      */
-    rtsp_data->swsctx = sws_getContext(
-         rtsp_data->codec_context->width
-        ,rtsp_data->codec_context->height
-        ,rtsp_data->codec_context->pix_fmt
-        ,rtsp_data->imgsize.width
-        ,rtsp_data->imgsize.height
-        ,MY_PIX_FMT_YUV420P
-        ,SWS_BICUBIC,NULL,NULL,NULL);
-    if (rtsp_data->swsctx == NULL) {
-        if (rtsp_data->status == RTSP_NOTCONNECTED){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to allocate scaling context."));
-        }
-        netcam_rtsp_close_context(rtsp_data);
-        return -1;
-    }
 
-    rtsp_data->swsframe_size = my_image_get_buffer_size(
-            MY_PIX_FMT_YUV420P
-            ,rtsp_data->imgsize.width
-            ,rtsp_data->imgsize.height);
-    if (rtsp_data->swsframe_size <= 0) {
-        if (rtsp_data->status == RTSP_NOTCONNECTED){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Error determining size of frame out"));
-        }
-        netcam_rtsp_close_context(rtsp_data);
-        return -1;
-    }
+    tmpval = mymalloc(PATH_MAX);
 
-    /* the image buffers must be big enough to hold the final frame after resizing */
-    netcam_check_buffsize(rtsp_data->img_recv, rtsp_data->swsframe_size);
-    netcam_check_buffsize(rtsp_data->img_latest, rtsp_data->swsframe_size);
+    if ((strncmp(rtsp_data->service, "rtsp", 4) == 0 ) ||
+        (strncmp(rtsp_data->service, "rtmp", 4) == 0 ) )
+    {
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO,_("%s: Setting rtsp/rtmp")
+            ,rtsp_data->cameratype);
+        util_parms_add_default(rtsp_data->parameters,"rtsp_transport","tcp");
+        util_parms_add_default(rtsp_data->parameters,"allowed_media_types", "video");
 
-    return 0;
+    } else if (strncmp(rtsp_data->service, "http", 4) == 0 ){
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Setting input_format mjpeg"),rtsp_data->cameratype);
+        rtsp_data->format_context->iformat = av_find_input_format("mjpeg");
 
-}
+    } else if (strncmp(rtsp_data->service, "v4l2", 4) == 0 ){
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Setting input_format video4linux2"),rtsp_data->cameratype);
+        rtsp_data->format_context->iformat = av_find_input_format("video4linux2");
 
-static void netcam_rtsp_set_http(struct rtsp_context *rtsp_data){
+        sprintf(tmpval,"%d",rtsp_data->conf->framerate);
+        util_parms_add_default(rtsp_data->parameters,"framerate", tmpval);
 
-    rtsp_data->format_context->iformat = av_find_input_format("mjpeg");
-    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-        ,_("%s: Setting http input_format mjpeg"),rtsp_data->cameratype);
+        sprintf(tmpval,"%dx%d",rtsp_data->conf->width, rtsp_data->conf->height);
+        util_parms_add_default(rtsp_data->parameters,"video_size", tmpval);
 
-}
+        /* Allow a bit more time for the v4l2 device to start up */
+        rtsp_data->cnt->watchdog = 60;
+        rtsp_data->interruptduration = 55;
 
-static void netcam_rtsp_set_rtsp(struct rtsp_context *rtsp_data){
 
-    if (rtsp_data->rtsp_uses_tcp) {
-        av_dict_set(&rtsp_data->opts, "rtsp_transport", "tcp", 0);
-        av_dict_set(&rtsp_data->opts, "allowed_media_types", "video", 0);
-        if (rtsp_data->status == RTSP_NOTCONNECTED)
-            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-                ,_("%s: Setting rtsp transport to tcp"),rtsp_data->cameratype);
+    } else if (strncmp(rtsp_data->service, "file", 4) == 0 ){
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Setting up movie file"),rtsp_data->cameratype);
+
     } else {
-        av_dict_set(&rtsp_data->opts, "rtsp_transport", "udp", 0);
-        av_dict_set(&rtsp_data->opts, "max_delay", "500000", 0);  /* 100000 is the default */
-        if (rtsp_data->status == RTSP_NOTCONNECTED)
-            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-                ,_("%s: Setting rtsp transport to udp"),rtsp_data->cameratype);
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO,_("%s: Setting up %s")
+            ,rtsp_data->cameratype, rtsp_data->service);
     }
-}
 
-static void netcam_rtsp_set_file(struct rtsp_context *rtsp_data){
+    free(tmpval);
 
-    /* This is a place holder for the moment.  We will add into
-     * this function any options that must be set for ffmpeg to
-     * read a particular file.  To date, it does not need any
-     * additional options and works fine with defaults.
-     */
-    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-        ,_("%s: Setting attributes to read file"),rtsp_data->cameratype);
-
-}
-
-static void netcam_rtsp_set_v4l2(struct rtsp_context *rtsp_data){
-
-    char optsize[10], optfmt[10], optfps[10];
-    char *fourcc;
-
-    rtsp_data->format_context->iformat = av_find_input_format("video4linux2");
-
-    fourcc=malloc(5*sizeof(char));
-
-    v4l2_palette_fourcc(rtsp_data->v4l2_palette, fourcc);
-
-    if (strcmp(fourcc,"MJPG") == 0) {
-        if (v4l2_palette_valid(rtsp_data->path,rtsp_data->v4l2_palette)){
-            sprintf(optfmt, "%s","mjpeg");
-            av_dict_set(&rtsp_data->opts, "input_format", optfmt, 0);
-        } else {
-            sprintf(optfmt, "%s","default");
+    /* Write the options to the context, while skipping the Motion ones */
+    for (indx = 0; indx < rtsp_data->parameters->params_count; indx++)
+    {
+        if (strcmp(rtsp_data->parameters->params_array[indx].param_name,"decoder") &&
+            strcmp(rtsp_data->parameters->params_array[indx].param_name,"capture_rate") )
+        {
+            av_dict_set(&rtsp_data->opts
+                , rtsp_data->parameters->params_array[indx].param_name
+                , rtsp_data->parameters->params_array[indx].param_value
+                , 0);
+            if (rtsp_data->status == RTSP_NOTCONNECTED){
+                MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO,_("%s: option: %s = %s")
+                    ,rtsp_data->cameratype
+                    ,rtsp_data->parameters->params_array[indx].param_name
+                    ,rtsp_data->parameters->params_array[indx].param_value
+                );
+            }
         }
-    } else if (strcmp(fourcc,"H264") == 0){
-        if (v4l2_palette_valid(rtsp_data->path,rtsp_data->v4l2_palette)){
-            sprintf(optfmt, "%s","h264");
-            av_dict_set(&rtsp_data->opts, "input_format", optfmt, 0);
-        } else {
-            sprintf(optfmt, "%s","default");
-        }
-    } else {
-        sprintf(optfmt, "%s","default");
     }
-
-    if (strcmp(optfmt,"default") != 0) {
-        if (v4l2_parms_valid(rtsp_data->path
-                             ,rtsp_data->v4l2_palette
-                             ,rtsp_data->framerate
-                             ,rtsp_data->imgsize.width
-                             ,rtsp_data->imgsize.height)) {
-            sprintf(optfps, "%d",rtsp_data->framerate);
-            av_dict_set(&rtsp_data->opts, "framerate", optfps, 0);
-
-            sprintf(optsize, "%dx%d",rtsp_data->imgsize.width,rtsp_data->imgsize.height);
-            av_dict_set(&rtsp_data->opts, "video_size", optsize, 0);
-        } else {
-            sprintf(optfps, "%s","default");
-            sprintf(optsize, "%s","default");
-        }
-    } else {
-        sprintf(optfps, "%s","default");
-        sprintf(optsize, "%s","default");
-    }
-
-    if (rtsp_data->status == RTSP_NOTCONNECTED){
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Requested v4l2_palette option: %d")
-            ,rtsp_data->cameratype,rtsp_data->v4l2_palette);
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Requested FOURCC code: %s"),rtsp_data->cameratype,fourcc);
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Setting v4l2 input_format: %s"),rtsp_data->cameratype,optfmt);
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Setting v4l2 framerate: %s"),rtsp_data->cameratype, optfps);
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Setting v4l2 video_size: %s"),rtsp_data->cameratype, optsize);
-    }
-
-    free(fourcc);
 
 }
 
@@ -910,14 +1168,9 @@ static void netcam_rtsp_set_path (struct context *cnt, struct rtsp_context *rtsp
     memset(&url, 0, sizeof(url));
 
     if (rtsp_data->high_resolution){
-        netcam_url_parse(&url, cnt->conf.netcam_highres);
+        netcam_url_parse(&url, cnt->conf.netcam_high_url);
     } else {
         netcam_url_parse(&url, cnt->conf.netcam_url);
-    }
-
-    if (cnt->conf.netcam_proxy) {
-        MOTION_LOG(WRN, TYPE_NETCAM, NO_ERRNO
-            ,_("Proxies not supported using for %s"),url.service);
     }
 
     if (cnt->conf.netcam_userpass != NULL) {
@@ -968,25 +1221,37 @@ static void netcam_rtsp_set_path (struct context *cnt, struct rtsp_context *rtsp
 static void netcam_rtsp_set_parms (struct context *cnt, struct rtsp_context *rtsp_data ) {
     /* Set the parameters to be used with our camera */
 
+    char *tmpval;
+    int indx, val_len;
+
+    rtsp_data->conf = &cnt->conf;
+
     if (rtsp_data->high_resolution) {
         rtsp_data->imgsize.width = 0;
         rtsp_data->imgsize.height = 0;
-        snprintf(rtsp_data->cameratype,29, "%s",_("High resolution"));
+        snprintf(rtsp_data->cameratype,29, "%s",_("highres"));
+        rtsp_data->parameters = mymalloc(sizeof(struct params_context));
+        rtsp_data->parameters->update_params = TRUE;
+        util_parms_parse(rtsp_data->parameters,(char*)cnt->conf.netcam_high_params);
     } else {
         rtsp_data->imgsize.width = cnt->conf.width;
         rtsp_data->imgsize.height = cnt->conf.height;
-        snprintf(rtsp_data->cameratype,29, "%s",_("Normal resolution"));
+        snprintf(rtsp_data->cameratype,29, "%s",_("norm"));
+        rtsp_data->parameters = mymalloc(sizeof(struct params_context));
+        rtsp_data->parameters->update_params = TRUE;
+        util_parms_parse(rtsp_data->parameters, (char*)cnt->conf.netcam_params);
     }
     MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
         ,_("Setting up %s stream."),rtsp_data->cameratype);
 
-    util_check_passthrough(cnt); /* In case it was turned on via webcontrol */
     rtsp_data->status = RTSP_NOTCONNECTED;
-    rtsp_data->rtsp_uses_tcp =cnt->conf.netcam_use_tcp;
-    rtsp_data->v4l2_palette = cnt->conf.v4l2_palette;
-    rtsp_data->framerate = cnt->conf.framerate;
-    rtsp_data->src_fps =  cnt->conf.framerate; /* Default to conf fps */
-    rtsp_data->conf = &cnt->conf;
+
+    tmpval = mymalloc(PATH_MAX);
+    sprintf(tmpval,"%d",cnt->conf.framerate);
+    util_parms_add_default(rtsp_data->parameters,"capture_rate", tmpval);
+    free(tmpval);
+    util_parms_add_default(rtsp_data->parameters,"decoder","NULL");
+
     rtsp_data->camera_name = cnt->conf.camera_name;
     rtsp_data->img_recv = mymalloc(sizeof(netcam_buff));
     rtsp_data->img_recv->ptr = mymalloc(NETCAM_BUFFSIZE);
@@ -998,33 +1263,50 @@ static void netcam_rtsp_set_parms (struct context *cnt, struct rtsp_context *rts
     rtsp_data->handler_finished = TRUE;
     rtsp_data->first_image = TRUE;
     rtsp_data->reconnect_count = 0;
-    rtsp_data->decoder_nm = cnt->netcam_decoder;
     rtsp_data->cnt = cnt;
+    rtsp_data->capture_nbr = -1;
+    rtsp_data->src_fps =  -99; /* Default to invalid value so we can test for whether real value exist */
 
-    snprintf(rtsp_data->threadname, 15, "%s",_("Unknown"));
+    for (indx = 0; indx < rtsp_data->parameters->params_count; indx++)
+    {
+        if ( !strcmp(rtsp_data->parameters->params_array[indx].param_name,"decoder") ){
+            val_len = strlen(rtsp_data->parameters->params_array[indx].param_value) + 1;
+            rtsp_data->decoder_nm = mymalloc(val_len);
+            snprintf(rtsp_data->decoder_nm, val_len
+                , "%s",rtsp_data->parameters->params_array[indx].param_value);
+        }
 
+        if ( !strcmp(rtsp_data->parameters->params_array[indx].param_name,"capture_rate") ){
+            rtsp_data->capture_rate = atoi(rtsp_data->parameters->params_array[indx].param_value);
+        }
+
+    }
+
+    if (rtsp_data->capture_rate < 1 ) rtsp_data->capture_rate = 1;
+
+    /* If this is the norm and we have a highres, then disable passthru on the norm */
+    if ((!rtsp_data->high_resolution) && (cnt->conf.netcam_high_url)) {
+        rtsp_data->passthrough = FALSE;
+    } else {
+        rtsp_data->passthrough = util_check_passthrough(cnt);
+    }
+
+    rtsp_data->interruptduration = 5;
+    rtsp_data->interrupted = FALSE;
     if (gettimeofday(&rtsp_data->interruptstarttime, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
     }
     if (gettimeofday(&rtsp_data->interruptcurrenttime, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
     }
-    /* If this is the norm and we have a highres, then disable passthru on the norm */
-    if ((!rtsp_data->high_resolution) &&
-        (cnt->conf.netcam_highres)) {
-        rtsp_data->passthrough = FALSE;
-    } else {
-        rtsp_data->passthrough = util_check_passthrough(cnt);
-    }
-    rtsp_data->interruptduration = 5;
-    rtsp_data->interrupted = FALSE;
-
     if (gettimeofday(&rtsp_data->frame_curr_tm, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
     }
     if (gettimeofday(&rtsp_data->frame_prev_tm, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
     }
+
+    snprintf(rtsp_data->threadname, 15, "%s",_("Unknown"));
 
     netcam_rtsp_set_path(cnt, rtsp_data);
 
@@ -1067,53 +1349,49 @@ static int netcam_rtsp_set_dimensions (struct context *cnt) {
 
 static int netcam_rtsp_copy_stream(struct rtsp_context *rtsp_data){
     /* Make a static copy of the stream information for use in passthrough processing */
-#if (LIBAVFORMAT_VERSION_MAJOR >= 58) || ((LIBAVFORMAT_VERSION_MAJOR == 57) && (LIBAVFORMAT_VERSION_MINOR >= 41))
-    AVStream  *transfer_stream, *stream_in;
-    int        retcd;
+    #if ( MYFFVER >= 57041)
+        AVStream  *transfer_stream, *stream_in;
+        int        retcd;
 
-    pthread_mutex_lock(&rtsp_data->mutex_transfer);
-        if (rtsp_data->transfer_format != NULL) avformat_close_input(&rtsp_data->transfer_format);
-        rtsp_data->transfer_format = avformat_alloc_context();
-        transfer_stream = avformat_new_stream(rtsp_data->transfer_format, NULL);
-        stream_in = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
-        retcd = avcodec_parameters_copy(transfer_stream->codecpar, stream_in->codecpar);
-        if (retcd < 0){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
-                ,_("Unable to copy codec parameters"));
-            pthread_mutex_unlock(&rtsp_data->mutex_transfer);
-            return -1;
-        }
-        transfer_stream->time_base         = stream_in->time_base;
-    pthread_mutex_unlock(&rtsp_data->mutex_transfer);
+        pthread_mutex_lock(&rtsp_data->mutex_transfer);
+            if (rtsp_data->transfer_format != NULL) avformat_close_input(&rtsp_data->transfer_format);
+            rtsp_data->transfer_format = avformat_alloc_context();
+            transfer_stream = avformat_new_stream(rtsp_data->transfer_format, NULL);
+            stream_in = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
+            retcd = avcodec_parameters_copy(transfer_stream->codecpar, stream_in->codecpar);
+            if (retcd < 0){
+                MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
+                    ,_("Unable to copy codec parameters"));
+                pthread_mutex_unlock(&rtsp_data->mutex_transfer);
+                return -1;
+            }
+            transfer_stream->time_base         = stream_in->time_base;
+        pthread_mutex_unlock(&rtsp_data->mutex_transfer);
 
-    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Stream copied for pass-through"));
-    return 0;
-#elif (LIBAVFORMAT_VERSION_MAJOR >= 55)
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Stream copied for pass-through"));
+        return 0;
+    #else
 
-    AVStream  *transfer_stream, *stream_in;
-    int        retcd;
+        AVStream  *transfer_stream, *stream_in;
+        int        retcd;
 
-    pthread_mutex_lock(&rtsp_data->mutex_transfer);
-        if (rtsp_data->transfer_format != NULL) avformat_close_input(&rtsp_data->transfer_format);
-        rtsp_data->transfer_format = avformat_alloc_context();
-        transfer_stream = avformat_new_stream(rtsp_data->transfer_format, NULL);
-        stream_in = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
-        retcd = avcodec_copy_context(transfer_stream->codec, stream_in->codec);
-        if (retcd < 0){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to copy codec parameters"));
-            pthread_mutex_unlock(&rtsp_data->mutex_transfer);
-            return -1;
-        }
-        transfer_stream->time_base         = stream_in->time_base;
-    pthread_mutex_unlock(&rtsp_data->mutex_transfer);
+        pthread_mutex_lock(&rtsp_data->mutex_transfer);
+            if (rtsp_data->transfer_format != NULL) avformat_close_input(&rtsp_data->transfer_format);
+            rtsp_data->transfer_format = avformat_alloc_context();
+            transfer_stream = avformat_new_stream(rtsp_data->transfer_format, NULL);
+            stream_in = rtsp_data->format_context->streams[rtsp_data->video_stream_index];
+            retcd = avcodec_copy_context(transfer_stream->codec, stream_in->codec);
+            if (retcd < 0){
+                MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO, _("Unable to copy codec parameters"));
+                pthread_mutex_unlock(&rtsp_data->mutex_transfer);
+                return -1;
+            }
+            transfer_stream->time_base         = stream_in->time_base;
+        pthread_mutex_unlock(&rtsp_data->mutex_transfer);
 
-    MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Stream copied for pass-through"));
-    return 0;
-#else
-    /* This is disabled in the util_check_passthrough but we need it here for compiling */
-    if (rtsp_data != NULL) MOTION_LOG(INF, TYPE_ENCODER, NO_ERRNO, _("ffmpeg too old"));
-    return -1;
-#endif
+        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO, _("Stream copied for pass-through"));
+        return 0;
+    #endif
 
 }
 
@@ -1143,37 +1421,7 @@ static int netcam_rtsp_open_context(struct rtsp_context *rtsp_data){
 
     rtsp_data->interruptduration = 20;
 
-    if (strncmp(rtsp_data->service, "http", 4) == 0 ){
-        netcam_rtsp_set_http(rtsp_data);
-    } else if (strncmp(rtsp_data->service, "rtsp", 4) == 0 ){
-        netcam_rtsp_set_rtsp(rtsp_data);
-    } else if (strncmp(rtsp_data->service, "rtmp", 4) == 0 ){
-        netcam_rtsp_set_rtsp(rtsp_data);
-    } else if (strncmp(rtsp_data->service, "v4l2", 4) == 0 ){
-        netcam_rtsp_set_v4l2(rtsp_data);
-    } else if (strncmp(rtsp_data->service, "file", 4) == 0 ){
-        netcam_rtsp_set_file(rtsp_data);
-    } else {
-        av_dict_free(&rtsp_data->opts);
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("%s: Invalid camera service"), rtsp_data->cameratype);
-        return -1;
-    }
-    /*
-     * There is not many av functions above this (av_dict_free?) but we are not getting clean
-     * interrupts or shutdowns via valgrind and they all point to issues with the avformat_open_input
-     * right below so we make sure that we are not in a interrupt / finish situation before calling it
-     */
-    if ((rtsp_data->interrupted) || (rtsp_data->finish) ){
-        if (rtsp_data->status == RTSP_NOTCONNECTED){
-            MOTION_LOG(ERR, TYPE_NETCAM, NO_ERRNO
-                ,_("%s: Unable to open camera(%s)")
-                , rtsp_data->cameratype, rtsp_data->camera_name);
-        }
-        av_dict_free(&rtsp_data->opts);
-        if (rtsp_data->interrupted) netcam_rtsp_close_context(rtsp_data);
-        return -1;
-    }
+    netcam_rtsp_set_options(rtsp_data);
 
     retcd = avformat_open_input(&rtsp_data->format_context, rtsp_data->path, NULL, &rtsp_data->opts);
     if ((retcd < 0) || (rtsp_data->interrupted) || (rtsp_data->finish) ){
@@ -1238,8 +1486,6 @@ static int netcam_rtsp_open_context(struct rtsp_context *rtsp_data){
     if (rtsp_data->high_resolution){
         rtsp_data->imgsize.width = rtsp_data->codec_context->width;
         rtsp_data->imgsize.height = rtsp_data->codec_context->height;
-    } else {
-        if (netcam_rtsp_open_sws(rtsp_data) < 0) return -1;
     }
 
     rtsp_data->frame = my_frame_alloc();
@@ -1293,11 +1539,37 @@ static int netcam_rtsp_connect(struct rtsp_context *rtsp_data){
      * Motion loop to start quite yet on this first image so we do
      * not set the status to connected
      */
-    if (!rtsp_data->first_image) rtsp_data->status = RTSP_CONNECTED;
+    if (!rtsp_data->first_image){
 
-    MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
-        ,_("%s: Camera (%s) connected")
-        , rtsp_data->cameratype,rtsp_data->camera_name);
+        rtsp_data->status = RTSP_CONNECTED;
+
+        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Camera (%s) connected")
+            ,rtsp_data->cameratype,rtsp_data->camera_name);
+
+        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
+            ,_("%s: Netcam capture FPS is %d.")
+            ,rtsp_data->cameratype, rtsp_data->capture_rate);
+
+        if (rtsp_data->src_fps > 0){
+            MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: Camera source is %d FPS")
+                ,rtsp_data->cameratype, rtsp_data->src_fps);
+        } else {
+            MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: Unable to determine the camera source FPS.")
+                ,rtsp_data->cameratype);
+        }
+
+        if (rtsp_data->capture_rate < rtsp_data->src_fps){
+            MOTION_LOG(WRN, TYPE_NETCAM, NO_ERRNO
+                ,_("%s: Capture FPS rate is less than camera FPS.  Decoding errors will occur.")
+                , rtsp_data->cameratype);
+            MOTION_LOG(WRN, TYPE_NETCAM, NO_ERRNO
+                , _("%s:  Better decoding occurs when netcam capture FPS is slightly larger than camera FPS")
+                , rtsp_data->cameratype);
+        }
+    }
 
     return 0;
 }
@@ -1308,47 +1580,38 @@ static void netcam_rtsp_shutdown(struct rtsp_context *rtsp_data){
         netcam_rtsp_close_context(rtsp_data);
 
         if (rtsp_data->path != NULL) free(rtsp_data->path);
+        rtsp_data->path       = NULL;
 
         if (rtsp_data->img_latest != NULL){
             free(rtsp_data->img_latest->ptr);
             free(rtsp_data->img_latest);
         }
+        rtsp_data->img_latest = NULL;
+
         if (rtsp_data->img_recv != NULL){
             free(rtsp_data->img_recv->ptr);
             free(rtsp_data->img_recv);
         }
-
-        rtsp_data->path    = NULL;
-        rtsp_data->img_latest = NULL;
         rtsp_data->img_recv   = NULL;
+
+        if (rtsp_data->decoder_nm != NULL) free(rtsp_data->decoder_nm);
+        rtsp_data->decoder_nm = NULL;
+
+        util_parms_free (rtsp_data->parameters);
+        if (rtsp_data->parameters != NULL) free(rtsp_data->parameters);
+        rtsp_data->parameters = NULL;
+
     }
 
 }
 
 static void netcam_rtsp_handler_wait(struct rtsp_context *rtsp_data){
-    /* This function slows down the handler loop to try to
-     * get in sync with the main motion loop in the capturing
-     * of images while also trying to not go so slow that the
-     * connection to the  network camera is lost and we end up
-     * with lots of reconnects or fragmented images
-     */
 
-    int framerate;
     long usec_maxrate, usec_delay;
 
-    framerate = rtsp_data->conf->framerate;
-    if (framerate < 2) framerate = 2;
+    if (rtsp_data->capture_rate < 1 ) rtsp_data->capture_rate = 1;
 
-    if (strcmp(rtsp_data->service,"file") == 0) {
-        /* For file processing, we try to match exactly the motion loop rate */
-        usec_maxrate = (1000000L / framerate);
-    } else {
-        /* We set the capture rate to be a bit faster than the frame rate.  This
-         * should provide the motion loop with a picture whenever it wants one.
-         */
-        if (framerate < rtsp_data->src_fps) framerate = rtsp_data->src_fps;
-        usec_maxrate = (1000000L / (framerate + 3));
-    }
+    usec_maxrate = (1000000L / rtsp_data->capture_rate);
 
     if (gettimeofday(&rtsp_data->frame_curr_tm, NULL) < 0) {
         MOTION_LOG(ERR, TYPE_NETCAM, SHOW_ERRNO, "gettimeofday");
@@ -1452,8 +1715,7 @@ static void *netcam_rtsp_handler(void *arg){
 
 static int netcam_rtsp_start_handler(struct rtsp_context *rtsp_data){
 
-    int retcd;
-    int wait_counter;
+    int retcd, wait_counter;
     pthread_attr_t handler_attribute;
 
     pthread_mutex_init(&rtsp_data->mutex, NULL);
@@ -1494,19 +1756,6 @@ static int netcam_rtsp_start_handler(struct rtsp_context *rtsp_data){
             wait_counter--;
         }
     }
-    /* Warn the user about a mismatch of camera FPS vs handler capture rate*/
-    if (rtsp_data->conf->framerate < rtsp_data->src_fps){
-        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
-            , _("Requested frame rate %d FPS is less than camera frame rate %d FPS")
-            , rtsp_data->conf->framerate,rtsp_data->src_fps);
-        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
-            , _("Increasing capture rate to %d FPS to match camera.")
-            , rtsp_data->src_fps);
-        MOTION_LOG(NTC, TYPE_NETCAM, NO_ERRNO
-            , _("To lower CPU, change camera FPS to lower rate and decrease I frame interval.")
-            , rtsp_data->src_fps);
-
-    }
 
     return 0;
 
@@ -1532,7 +1781,7 @@ int netcam_rtsp_setup(struct context *cnt){
 
     indx_cam = 1;
     indx_max = 1;
-    if (cnt->conf.netcam_highres) indx_max = 2;
+    if (cnt->conf.netcam_high_url) indx_max = 2;
 
     while (indx_cam <= indx_max){
         if (indx_cam == 1){

@@ -553,6 +553,9 @@ static void motion_detected(struct context *cnt, int dev, struct image_data *img
             /* always save first motion frame as preview-shot, may be changed to an other one later */
             if (cnt->new_img & (NEWIMG_FIRST | NEWIMG_BEST | NEWIMG_CENTER))
                 image_save_as_preview(cnt, img);
+            /* Save first motion frame */
+            if (cnt->new_img & NEWIMG_FIRST)
+                event(cnt, EVENT_IMAGE_PREVIEW, NULL, NULL, NULL, &cnt->current_image->timestamp_tv);
 
         }
 
@@ -1289,19 +1292,6 @@ static int motion_init(struct context *cnt)
     if (cnt->conf.width  < 64) cnt->conf.width  = 64;
     if (cnt->conf.height < 64) cnt->conf.height = 64;
 
-    if (cnt->conf.netcam_decoder != NULL){
-        cnt->netcam_decoder = mymalloc(strlen(cnt->conf.netcam_decoder)+1);
-        retcd = snprintf(cnt->netcam_decoder,strlen(cnt->conf.netcam_decoder)+1
-            ,"%s",cnt->conf.netcam_decoder);
-        if (retcd < 0){
-            free(cnt->netcam_decoder);
-            cnt->netcam_decoder = NULL;
-        }
-    } else {
-        cnt->netcam_decoder = NULL;
-    }
-
-
     /* set the device settings */
     cnt->video_dev = vid_start(cnt);
 
@@ -1510,30 +1500,6 @@ static int motion_init(struct context *cnt)
         cnt->threshold_maximum = (cnt->imgs.height * cnt->imgs.width * 3) / 2;
     }
 
-    if (cnt->conf.stream_preview_method == 99){
-        /* This is the depreciated Stop stream process */
-
-        /* Initialize stream server if stream port is specified to not 0 */
-
-        if (cnt->conf.stream_port) {
-            if (stream_init (&(cnt->stream), cnt->conf.stream_port, cnt->conf.stream_localhost,
-                cnt->conf.webcontrol_ipv6, cnt->conf.stream_cors_header) == -1) {
-                MOTION_LOG(ERR, TYPE_ALL, SHOW_ERRNO
-                    ,_("Problem enabling motion-stream server in port %d")
-                    ,cnt->conf.stream_port);
-                cnt->conf.stream_port = 0;
-                cnt->finish = 1;
-            } else {
-                MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
-                    ,_("Started motion-stream server on port %d (auth %s)")
-                    ,cnt->conf.stream_port
-                    ,cnt->conf.stream_auth_method ? _("Enabled"):_("Disabled"));
-            }
-        }
-
-    } /* End of legacy stream methods*/
-
-
     /* Prevent first few frames from triggering motion... */
     cnt->moved = 8;
 
@@ -1631,12 +1597,6 @@ static int motion_init(struct context *cnt)
  */
 static void motion_cleanup(struct context *cnt) {
 
-    if (cnt->conf.stream_preview_method == 99){
-        /* This is the depreciated Stop stream process */
-        if ((cnt->conf.stream_port) && (cnt->stream.socket != -1))
-            stream_stop(&cnt->stream);
-    }
-
     event(cnt, EVENT_TIMELAPSEEND, NULL, NULL, NULL, NULL);
     event(cnt, EVENT_ENDMOTION, NULL, NULL, NULL, NULL);
 
@@ -1732,11 +1692,6 @@ static void motion_cleanup(struct context *cnt) {
     cnt->eventtime_tm = NULL;
 
     dbse_deinit(cnt);
-
-    if (cnt->netcam_decoder){
-        free(cnt->netcam_decoder);
-        cnt->netcam_decoder = NULL;
-    }
 
 }
 
@@ -2239,7 +2194,7 @@ static void mlp_detection(struct context *cnt){
              * 'lightswitch_frames' frames to allow the camera to settle.
              * Don't check if we have lost connection, we detect "Lost signal" frame as lightswitch
              */
-            if (cnt->conf.lightswitch_percent > 1 && !cnt->lost_connection) {
+            if (cnt->conf.lightswitch_percent >= 1 && !cnt->lost_connection) {
                 if (alg_lightswitch(cnt, cnt->current_image->diffs)) {
                     MOTION_LOG(INF, TYPE_ALL, NO_ERRNO, _("Lightswitch detected"));
 
@@ -2587,63 +2542,56 @@ static void mlp_actions(struct context *cnt){
 
     mlp_areadetect(cnt);
 
-    /*
-     * Is the movie too long? Then make movies
-     * First test for movie_max_time
-     */
-    if ((cnt->conf.movie_max_time && cnt->event_nr == cnt->prev_event) &&
-        (cnt->currenttime - cnt->eventtime >= cnt->conf.movie_max_time))
+    /* Check for movie length */
+    if ((cnt->conf.movie_max_time > 0) &&
+        (cnt->event_nr == cnt->prev_event) &&
+        ((cnt->currenttime - cnt->eventtime) >= cnt->conf.movie_max_time)) {
         cnt->event_stop = TRUE;
+    }
 
-    /*
-     * Now test for quiet longer than 'gap' OR make movie as decided in
-     * previous statement.
-     */
-    if (((cnt->currenttime - cnt->lasttime >= cnt->conf.event_gap) && cnt->conf.event_gap > 0) ||
-          cnt->event_stop) {
-        if (cnt->event_nr == cnt->prev_event || cnt->event_stop) {
+    /* Check event gap */
+    if ((cnt->conf.event_gap > 0) &&
+        ((cnt->currenttime - cnt->lasttime) >= cnt->conf.event_gap )) {
+        cnt->event_stop = TRUE;
+    }
+    /* Note that event_stop can be set elsewhere in code as well */
 
-            /* Flush image buffer */
-            process_image_ring(cnt, IMAGE_BUFFER_FLUSH);
+    if ( cnt->event_stop ) {
+        if (cnt->event_nr == cnt->prev_event) {
+            /* When prev_event = event_nr, there is currently
+             * an event occurring so trigger ending events */
+
+            process_image_ring(cnt, IMAGE_BUFFER_FLUSH);  /* Flush image buffer */
 
             /* Save preview_shot here at the end of event */
             if (cnt->imgs.preview_image.diffs) {
-                event(cnt, EVENT_IMAGE_PREVIEW, NULL, NULL, NULL, &cnt->current_image->timestamp_tv);
+                /* Do not save if it was saved at start */
+                if (!(cnt->new_img & NEWIMG_FIRST)) {
+                    event(cnt, EVENT_IMAGE_PREVIEW, NULL, NULL, NULL, &cnt->current_image->timestamp_tv);
+                }
                 cnt->imgs.preview_image.diffs = 0;
             }
 
             event(cnt, EVENT_ENDMOTION, NULL, NULL, NULL, &cnt->current_image->timestamp_tv);
 
-            /*
-             * If tracking is enabled we center our camera so it does not
-             * point to a place where it will miss the next action
-             */
-            if (cnt->track.type)
+            if (cnt->track.type){
                 cnt->moved = track_center(cnt, cnt->video_dev, 0, 0, 0);
+            }
 
             MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO, _("End of event %d"), cnt->event_nr);
 
-            cnt->event_stop = FALSE;
-            cnt->event_user = FALSE;
-
-            /* Reset post capture */
+            /* Reset vars for next event and increment to next event number */
             cnt->postcap = 0;
-
-            /* Finally we increase the event number */
-            cnt->event_nr++;
             cnt->lightswitch_framecounter = 0;
-
-            /*
-             * And we unset the text_event_string to avoid that buffered
-             * images get a timestamp from previous event.
-             */
             cnt->text_event_string[0] = '\0';
+            cnt->event_nr++;
         }
+        cnt->event_stop = FALSE;
+        cnt->event_user = FALSE;
     }
 
     /* Save/send to movie some images */
     process_image_ring(cnt, 2);
-
 
 }
 
@@ -4199,19 +4147,344 @@ void util_threadname_get(char *threadname){
 
 }
 int util_check_passthrough(struct context *cnt){
-#if (HAVE_FFMPEG && LIBAVFORMAT_VERSION_MAJOR < 55)
-    if (cnt->movie_passthrough)
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("FFMPEG version too old. Disabling pass-through processing."));
-    return 0;
-#else
-    if (cnt->movie_passthrough){
-        MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
-            ,_("pass-through is enabled but is still experimental."));
-        return 1;
-    } else {
+    #if ( MYFFVER < 55000)
+        if (cnt->movie_passthrough)
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("FFMPEG version too old. Disabling pass-through processing."));
         return 0;
+    #else
+        if (cnt->movie_passthrough){
+            MOTION_LOG(INF, TYPE_NETCAM, NO_ERRNO
+                ,_("pass-through enabled."));
+            return 1;
+        } else {
+            return 0;
+        }
+    #endif
+}
+
+/* util_trim
+ * Trim away any leading or trailing whitespace in the string
+*/
+void util_trim(char *parm)
+{
+    int indx, indx_st, indx_en;
+
+    if (parm == NULL) return;
+
+    indx_en = strlen(parm) - 1;
+    if (indx_en == -1) return;
+
+    indx_st = 0;
+
+    while (isspace(parm[indx_st]) && (indx_st <= indx_en)) indx_st++;
+    if (indx_st > indx_en){
+        parm[0]= '\0';
+        return;
     }
-#endif
+
+    while (isspace(parm[indx_en]) && (indx_en > indx_st)) indx_en--;
+
+    for (indx = indx_st; indx<=indx_en; indx++)
+    {
+        parm[indx-indx_st] = parm[indx];
+    }
+    parm[indx_en-indx_st+1] = '\0';
+
+}
+
+/* util_parms_add
+ * Add the parsed out parameter and value to the control array.
+*/
+static void util_parms_add(struct params_context *parameters
+    , const char *parm_nm, const char *parm_vl)
+{
+    int indx, retcd;
+
+    indx=parameters->params_count;
+    parameters->params_count++;
+
+    if (indx == 0) {
+        parameters->params_array =(struct params_item_ctx *) mymalloc(sizeof(struct params_item_ctx));
+    } else {
+        parameters->params_array =
+            (struct params_item_ctx *)realloc(parameters->params_array
+                , sizeof(struct params_item_ctx)*(indx+1));
+    }
+
+    if (parm_nm != NULL) {
+        parameters->params_array[indx].param_name = (char*)mymalloc(strlen(parm_nm)+1);
+        retcd = sprintf(parameters->params_array[indx].param_name,"%s",parm_nm);
+        if (retcd < 0){
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error setting parm >%s<"),parm_nm);
+            free(parameters->params_array[indx].param_name);
+            parameters->params_array[indx].param_name = NULL;
+        }
+    } else {
+        parameters->params_array[indx].param_name = NULL;
+    }
+
+    if (parm_vl != NULL) {
+        parameters->params_array[indx].param_value = (char*)mymalloc(strlen(parm_vl)+1);
+        retcd = sprintf(parameters->params_array[indx].param_value,"%s",parm_vl);
+        if (retcd < 0){
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error setting parm >%s<"),parm_vl);
+            free(parameters->params_array[indx].param_value);
+            parameters->params_array[indx].param_value = NULL;
+        }
+    } else {
+        parameters->params_array[indx].param_value = NULL;
+    }
+
+    MOTION_LOG(INF, TYPE_ALL, NO_ERRNO,_("Parsed: >%s< >%s<")
+        ,parameters->params_array[indx].param_name
+        ,parameters->params_array[indx].param_value);
+
+}
+
+/* util_parms_extract
+ * Extract out of the configuration string the name and values at the location specified.
+*/
+static void util_parms_extract(struct params_context *parameters
+        , char *parmlne, int indxnm_st, int indxnm_en, int indxvl_st, int indxvl_en)
+{
+    char *parm_nm, *parm_vl;
+    int retcd, chksz;
+
+    if ((indxnm_en != 0) &&
+        (indxvl_st != 0) &&
+        ((indxnm_en - indxnm_st) > 0) &&
+        ((indxvl_en - indxvl_st) > 0))
+    {
+        parm_nm = mymalloc(PATH_MAX);
+        parm_vl = mymalloc(PATH_MAX);
+
+        chksz = indxnm_en - indxnm_st + 1;
+        retcd = snprintf(parm_nm, chksz, "%s", parmlne + indxnm_st);
+        if (retcd < 0) {
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error parsing parm_nm controls: %s"), parmlne);
+            free(parm_nm);
+            parm_nm = NULL;
+        }
+
+        chksz = indxvl_en - indxvl_st + 1;
+        retcd = snprintf(parm_vl, chksz, "%s", parmlne + indxvl_st);
+        if (retcd < 0) {
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error parsing parm_vl controls: %s"), parmlne);
+            free(parm_vl);
+            parm_vl = NULL;
+        }
+
+        util_trim(parm_nm);
+        util_trim(parm_vl);
+
+        util_parms_add(parameters, parm_nm, parm_vl);
+
+        if (parm_nm != NULL) free(parm_nm);
+        if (parm_vl != NULL) free(parm_vl);
+    }
+
+}
+
+/* util_parms_next
+ * Remove the parameter parsed out in previous steps from the parms string
+ * and set up the string for parsing out the next parameter.
+*/
+static void util_parms_next(char *parmlne, int indxnm_st, int indxvl_en)
+{
+    char *parm_tmp;
+    int retcd;
+
+    parm_tmp = mymalloc(PATH_MAX);
+    retcd = snprintf(parm_tmp, PATH_MAX, "%s", parmlne);
+    if (retcd < 0) {
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error setting temp: %s"), parmlne);
+        free(parm_tmp);
+        return;
+    }
+
+    if (indxnm_st == 0) {
+        if ((size_t)(indxvl_en + 1) >strlen(parmlne)) {
+            parmlne[0]='\0';
+        } else {
+            retcd = snprintf(parmlne, strlen(parm_tmp) - indxvl_en + 1
+                , "%s", parm_tmp+indxvl_en+1);
+        }
+    } else {
+        if ((size_t)(indxvl_en + 1) > strlen(parmlne) ) {
+            retcd = snprintf(parmlne, indxnm_st - 1, "%s", parm_tmp);
+        } else {
+            retcd = snprintf(parmlne, PATH_MAX, "%.*s%.*s"
+                , indxnm_st - 1, parm_tmp
+                , (int)(strlen(parm_tmp) - indxvl_en)
+                , parm_tmp + indxvl_en);
+        }
+    }
+    if (retcd < 0) {
+        MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,_("Error reparsing controls: %s"), parmlne);
+    }
+
+    free(parm_tmp);
+
+}
+
+/* util_parms_parse_qte
+ * Split out the parameters that have quotes around the name.
+*/
+static void util_parms_parse_qte(struct params_context *parameters, char *parmlne)
+{
+    int indxnm_st, indxnm_en, indxvl_st, indxvl_en;
+
+    while (strstr(parmlne,"\"") != NULL)
+    {
+        indxnm_st = 0;
+        indxnm_en = 0;
+        indxvl_st = 0;
+        indxvl_en = strlen(parmlne);
+
+        indxnm_st = strstr(parmlne,"\"") - parmlne + 1;
+        if (strstr(parmlne + indxnm_st,"\"") != NULL) {
+            indxnm_en = strstr(parmlne + indxnm_st,"\"") - parmlne;
+            if (strstr(parmlne + indxnm_en + 1,"=") != NULL) {
+                indxvl_st = strstr(parmlne + indxnm_en + 1,"=") - parmlne + 1;
+            }
+            if (strstr(parmlne + indxvl_st + 1,",") != NULL) {
+                indxvl_en = strstr(parmlne + indxvl_st + 1,",") - parmlne;
+            }
+        }
+
+        util_parms_extract(parameters, parmlne, indxnm_st, indxnm_en, indxvl_st, indxvl_en);
+        util_parms_next(parmlne, indxnm_st, indxvl_en);
+    }
+}
+
+/* util_parms_parse_comma
+ * Split out the parameters between the commas.
+*/
+static void util_parms_parse_comma(struct params_context *parameters, char *parmlne)
+{
+    int indxnm_st, indxnm_en, indxvl_st, indxvl_en;
+
+    while (strstr(parmlne,",") != NULL)
+    {
+        indxnm_st = 0;
+        indxnm_en = 0;
+        indxvl_st = 0;
+        indxvl_en = strstr(parmlne, ",") - parmlne;
+
+        if (strstr(parmlne, "=") != NULL) {
+            indxnm_en = strstr(parmlne,"=") - parmlne;
+            if ((size_t)indxnm_en < strlen(parmlne)) {
+                indxvl_st = indxnm_en + 1;
+            }
+        }
+        util_parms_extract(parameters, parmlne, indxnm_st, indxnm_en, indxvl_st, indxvl_en);
+        util_parms_next(parmlne, indxnm_st, indxvl_en);
+    }
+
+}
+
+/* util_parms_free
+ * Free all the memory associated with the parameter control array.
+*/
+void util_parms_free(struct params_context *parameters)
+{
+    int indx;
+
+    if (parameters == NULL) return;
+
+    for (indx = 0; indx < parameters->params_count; indx++)
+    {
+        if (parameters->params_array[indx].param_name != NULL) {
+            free(parameters->params_array[indx].param_name);
+        }
+        parameters->params_array[indx].param_name = NULL;
+
+        if (parameters->params_array[indx].param_value != NULL) {
+            free(parameters->params_array[indx].param_value);
+        }
+        parameters->params_array[indx].param_value = NULL;
+    }
+
+    if (parameters->params_array != NULL) {
+        free(parameters->params_array);
+    }
+    parameters->params_array = NULL;
+
+    parameters->params_count = 0;
+
+}
+
+/* util_parms_parse
+ * Parse the user provided string of parameters into a array.
+*/
+void util_parms_parse(struct params_context *parameters, char *confparm)
+{
+    /* Parse through the configuration option to get values
+     * The values are separated by commas but may also have
+     * double quotes around the names which include a comma.
+     * Examples:
+     * vid_control_params ID01234= 1, ID23456=2
+     * vid_control_params "Brightness, auto" = 1, ID23456=2
+     * vid_control_params ID23456=2, "Brightness, auto" = 1,ID2222=5
+     */
+
+    int retcd, indxnm_st, indxnm_en, indxvl_st, indxvl_en;
+    char *parmlne;
+
+    util_parms_free(parameters);
+    parmlne = NULL;
+
+    if (confparm != NULL) {
+        MOTION_LOG(INF, TYPE_ALL, NO_ERRNO
+            ,_("Parsing controls: %s"), confparm);
+
+        parmlne = mymalloc(PATH_MAX);
+
+        retcd = snprintf(parmlne, PATH_MAX, "%s", confparm);
+        if ((retcd < 0) || (retcd > PATH_MAX)) {
+            MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
+                ,_("Error parsing controls: %s"), confparm);
+            free(parmlne);
+            return;
+        }
+
+        util_parms_parse_qte(parameters, parmlne);
+
+        util_parms_parse_comma(parameters, parmlne);
+
+        if (strlen(parmlne) != 0) {
+            indxnm_st = 0;
+            indxnm_en = 0;
+            indxvl_st = 0;
+            indxvl_en = strlen(parmlne);
+            if (strstr(parmlne + 1,"=") != NULL) {
+                indxnm_en = strstr(parmlne + 1,"=") - parmlne;
+                if ((size_t)indxnm_en < strlen(parmlne)){
+                    indxvl_st = indxnm_en + 1;
+                }
+            }
+
+            util_parms_extract(parameters, parmlne, indxnm_st, indxnm_en, indxvl_st, indxvl_en);
+        }
+        free(parmlne);
+    }
+
+    return;
+
+}
+
+void util_parms_add_default(struct params_context *parameters
+        , const char *parm_nm, const char *parm_vl)
+{
+
+    int indx, dflt;
+
+    dflt = TRUE;
+    for (indx = 0; indx < parameters->params_count; indx++)
+    {
+        if ( !strcmp(parameters->params_array[indx].param_name, parm_nm) ) dflt = FALSE;
+    }
+    if (dflt == TRUE) util_parms_add(parameters, parm_nm, parm_vl);
 
 }
