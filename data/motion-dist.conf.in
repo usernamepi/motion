@@ -124,9 +124,6 @@ locate_motion_mode off
 # Motion detection configuration parameters
 ############################################################
 
-# Always save pictures and movies even if there was no motion.
-emulate_motion off
-
 # Threshold for number of changed pixels that triggers motion.
 threshold 1500
 
