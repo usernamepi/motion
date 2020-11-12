@@ -1,3 +1,19 @@
+/*   This file is part of Motion.
+ *
+ *   Motion is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   Motion is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with Motion.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /*
  * mmalcam.c
  *
@@ -6,8 +22,6 @@
  *    Built upon functionality from the Raspberry Pi userland utility raspivid.
  *
  *    Copyright 2013 by Nicholas Tuckett
- *    This software is distributed under the GNU public license version 2
- *    See also the file 'COPYING'.
  *
  */
 
@@ -96,7 +110,7 @@ static void set_video_port_format(mmalcam_context_ptr mmalcam, MMAL_ES_FORMAT_T 
     set_port_format(mmalcam, format);
     format->es->video.frame_rate.num = mmalcam->framerate;
     format->es->video.frame_rate.den = VIDEO_FRAME_RATE_DEN;
-    if (mmalcam->framerate > 30){
+    if (mmalcam->framerate > 30) {
         /* The pi noir camera could not determine autoexpose at high frame rates */
         MOTION_LOG(WRN, TYPE_VIDEO, NO_ERRNO, _("A high frame rate can cause problems with exposure of images"));
         MOTION_LOG(WRN, TYPE_VIDEO, NO_ERRNO, _("If autoexposure is not working, try a lower frame rate."));
@@ -386,8 +400,9 @@ int mmalcam_next(struct context *cnt,  struct image_data *img_data)
 {
     mmalcam_context_ptr mmalcam;
 
-    if ((!cnt) || (!cnt->mmalcam))
+    if ((!cnt) || (!cnt->mmalcam)) {
         return NETCAM_FATAL_ERROR;
+    }
 
     mmalcam = cnt->mmalcam;
 
@@ -415,9 +430,10 @@ int mmalcam_next(struct context *cnt,  struct image_data *img_data)
             status = mmal_port_send_buffer(mmalcam->camera_capture_port, new_buffer);
         }
 
-        if (!new_buffer || status != MMAL_SUCCESS)
+        if (!new_buffer || status != MMAL_SUCCESS) {
             MOTION_LOG(ERR, TYPE_VIDEO, NO_ERRNO
                 ,_("Unable to return a buffer to the camera video port"));
+        }
     }
 
     rotate_map(cnt,img_data);

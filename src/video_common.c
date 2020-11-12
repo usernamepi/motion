@@ -1,11 +1,25 @@
+/*   This file is part of Motion.
+ *
+ *   Motion is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   Motion is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with Motion.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /*      video_common.c
  *
  *      Video stream functions for motion.
  *      Copyright 2000 by Jeroen Vreeken (pe1rxq@amsat.org)
  *                2006 by Krzysztof Blaszkowski (kb@sysmikro.com.pl)
  *                2007 by Angel Carpintero (motiondevelop@gmail.com)
- *      This software is distributed under the GNU public license version 2
- *      See also the file 'COPYING'.
  *
  */
 #include "translate.h"
@@ -636,12 +650,12 @@ int vid_mjpegtoyuv420p(unsigned char *map, unsigned char *cap_map, int width, in
      Some cameras are sending multiple SOIs in the buffer.
      Move the pointer to the last SOI in the buffer and proceed.
     */
-    while (ptr_buffer != NULL && ((size - soi_pos - 1) > 2) ){
+    while (ptr_buffer != NULL && ((size - soi_pos - 1) > 2)) {
         soi_pos = ptr_buffer - cap_map;
         ptr_buffer = memmem(cap_map + soi_pos + 1, size - soi_pos - 1, "\xff\xd8", 2);
     }
 
-    if (soi_pos != 0){
+    if (soi_pos != 0) {
         MOTION_LOG(INF, TYPE_VIDEO, NO_ERRNO,_("SOI position adjusted by %d bytes."), soi_pos);
     }
 
@@ -697,10 +711,14 @@ void vid_greytoyuv420p(unsigned char *map, unsigned char *cap_map, int width, in
 /* vid_parms_parse
  * Parse the video_params into an array.
 */
-int vid_parms_parse(struct context *cnt)
+void vid_parms_parse(struct context *cnt)
 {
 
-    if (cnt->vdev->update_params == FALSE) return 0;
+    int indx;
+
+    if (cnt->vdev->update_params == FALSE) {
+        return;
+    }
 
     /* Put in the user specified parameters */
     util_parms_parse(cnt->vdev, cnt->conf.video_params);
@@ -711,9 +729,21 @@ int vid_parms_parse(struct context *cnt)
     util_parms_add_default(cnt->vdev,"norm","0");
     util_parms_add_default(cnt->vdev,"frequency","0");
 
+    for (indx = 0; indx < cnt->vdev->params_count; indx++) {
+        if (mystreq(cnt->vdev->params_array[indx].param_name, "input")) {
+            cnt->param_input = atoi(cnt->vdev->params_array[indx].param_value);
+        }
+        if (mystreq(cnt->vdev->params_array[indx].param_name, "norm")) {
+            cnt->param_norm = atoi(cnt->vdev->params_array[indx].param_value);
+        }
+        if (mystreq(cnt->vdev->params_array[indx].param_name, "frequency")) {
+            cnt->param_freq = atol(cnt->vdev->params_array[indx].param_value);
+        }
+    }
+
     cnt->vdev->update_params = FALSE;
 
-    return 0;
+    return;
 
 }
 
@@ -729,16 +759,17 @@ void vid_mutex_destroy(void)
     bktr_mutex_destroy();
 }
 
-void vid_close(struct context *cnt) {
+void vid_close(struct context *cnt)
+{
 
-#ifdef HAVE_MMAL
-    if (cnt->mmalcam) {
-        MOTION_LOG(INF, TYPE_VIDEO, NO_ERRNO,_("calling mmalcam_cleanup"));
-        mmalcam_cleanup(cnt->mmalcam);
-        cnt->mmalcam = NULL;
-        return;
-    }
-#endif
+    #ifdef HAVE_MMAL
+        if (cnt->mmalcam) {
+            MOTION_LOG(INF, TYPE_VIDEO, NO_ERRNO,_("calling mmalcam_cleanup"));
+            mmalcam_cleanup(cnt->mmalcam);
+            cnt->mmalcam = NULL;
+            return;
+        }
+    #endif
 
     if (cnt->netcam) {
         MOTION_LOG(INF, TYPE_VIDEO, NO_ERRNO,_("calling netcam_cleanup"));
@@ -793,21 +824,22 @@ void vid_close(struct context *cnt) {
  *     -1 if failed to open device.
  *     -3 image dimensions are not modulo 8
  */
-int vid_start(struct context *cnt) {
+int vid_start(struct context *cnt)
+{
     int dev = -1;
 
-#ifdef HAVE_MMAL
-    if (cnt->camera_type == CAMERA_TYPE_MMAL) {
-        MOTION_LOG(NTC, TYPE_VIDEO, NO_ERRNO,_("Opening MMAL cam"));
-        dev = mmalcam_start(cnt);
-        if (dev < 0) {
-            mmalcam_cleanup(cnt->mmalcam);
-            cnt->mmalcam = NULL;
-            MOTION_LOG(ERR, TYPE_VIDEO, NO_ERRNO,_("MMAL cam failed to open"));
+    #ifdef HAVE_MMAL
+        if (cnt->camera_type == CAMERA_TYPE_MMAL) {
+            MOTION_LOG(NTC, TYPE_VIDEO, NO_ERRNO,_("Opening MMAL cam"));
+            dev = mmalcam_start(cnt);
+            if (dev < 0) {
+                mmalcam_cleanup(cnt->mmalcam);
+                cnt->mmalcam = NULL;
+                MOTION_LOG(ERR, TYPE_VIDEO, NO_ERRNO,_("MMAL cam failed to open"));
+            }
+            return dev;
         }
-        return dev;
-    }
-#endif
+    #endif
 
     if (cnt->camera_type == CAMERA_TYPE_NETCAM) {
         MOTION_LOG(NTC, TYPE_VIDEO, NO_ERRNO,_("Opening Netcam"));
@@ -874,27 +906,30 @@ int vid_start(struct context *cnt) {
  *    with bit 0 set            Non fatal V4L error (copy grey image and discard this image)
  *    with bit 1 set            Non fatal Netcam error
  */
-int vid_next(struct context *cnt, struct image_data *img_data){
+int vid_next(struct context *cnt, struct image_data *img_data)
+{
 
-#ifdef HAVE_MMAL
-     if (cnt->camera_type == CAMERA_TYPE_MMAL) {
-        if (cnt->mmalcam == NULL) {
-            return NETCAM_GENERAL_ERROR;
+    #ifdef HAVE_MMAL
+        if (cnt->camera_type == CAMERA_TYPE_MMAL) {
+            if (cnt->mmalcam == NULL) {
+                return NETCAM_GENERAL_ERROR;
+            }
+            return mmalcam_next(cnt, img_data);
         }
-        return mmalcam_next(cnt, img_data);
-    }
-#endif
+    #endif
 
     if (cnt->camera_type == CAMERA_TYPE_NETCAM) {
-        if (cnt->video_dev == -1)
+        if (cnt->video_dev == -1) {
             return NETCAM_GENERAL_ERROR;
+        }
 
         return netcam_next(cnt, img_data);
     }
 
     if (cnt->camera_type == CAMERA_TYPE_RTSP) {
-        if (cnt->video_dev == -1)
+        if (cnt->video_dev == -1) {
             return NETCAM_GENERAL_ERROR;
+        }
 
         return netcam_rtsp_next(cnt, img_data);
     }

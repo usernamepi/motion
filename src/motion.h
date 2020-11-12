@@ -1,9 +1,23 @@
+/*   This file is part of Motion.
+ *
+ *   Motion is free software: you can redistribute it and/or modify
+ *   it under the terms of the GNU General Public License as published by
+ *   the Free Software Foundation, either version 2 of the License, or
+ *   (at your option) any later version.
+ *
+ *   Motion is distributed in the hope that it will be useful,
+ *   but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *   GNU General Public License for more details.
+ *
+ *   You should have received a copy of the GNU General Public License
+ *   along with Motion.  If not, see <https://www.gnu.org/licenses/>.
+ */
+
 /*    motion.h
  *
  *    Include file for motion.c
  *      Copyright 2000 by Jeroen Vreeken (pe1rxq@amsat.org)
- *      This software is distributed under the GNU public license version 2
- *      See also the file 'COPYING'.
  *
  */
 
@@ -18,22 +32,22 @@ struct image_data;
 
 /* Includes */
 #if defined(HAVE_MYSQL) || defined(HAVE_MARIADB)
-#include <mysql.h>
+    #include <mysql.h>
 #endif
 
 #ifdef HAVE_SQLITE3
-#include <sqlite3.h>
+    #include <sqlite3.h>
 #endif
 
 #ifdef HAVE_PGSQL
-#include <libpq-fe.h>
+    #include <libpq-fe.h>
 #endif
 
 
 #include <stdio.h>
 #include <stdlib.h>
 #ifndef __USE_GNU
-#define __USE_GNU
+    #define __USE_GNU
 #endif
 #include <ctype.h>
 #include <string.h>
@@ -73,30 +87,14 @@ struct image_data;
 #include "ffmpeg.h"
 
 #ifdef HAVE_MMAL
-#include "mmalcam.h"
+    #include "mmalcam.h"
 #endif
 
-
-/**
- * ATTRIBUTE_UNUSED:
- *
- * Macro used to signal to GCC unused function parameters
- */
-#ifdef __GNUC__
-#ifdef HAVE_ANSIDECL_H
-#include <ansidecl.h>
-#endif
-#ifndef ATTRIBUTE_UNUSED
-#define ATTRIBUTE_UNUSED __attribute__((unused))
-#endif
-#else
-#define ATTRIBUTE_UNUSED
-#endif
 
 /*
- *  The macro below defines a version of sleep using nanosleep
- * If a signal such as SIG_CHLD interrupts the sleep we just continue sleeping
- */
+*  The macro below defines a version of sleep using nanosleep
+* If a signal such as SIG_CHLD interrupts the sleep we just continue sleeping
+*/
 #define SLEEP(seconds, nanoseconds) {              \
                 struct timespec tv;                \
                 tv.tv_sec = (seconds);             \
@@ -121,10 +119,10 @@ struct image_data;
 #define THRESHOLD_TUNE_LENGTH  256
 
 #define MISSING_FRAMES_TIMEOUT  30  /* When failing to get picture frame from camera
-                                       we reuse the previous frame until
-                                       MISSING_FRAMES_TIMEOUT seconds has passed
-                                       and then we show a grey image instead
-                                     */
+                                    we reuse the previous frame until
+                                    MISSING_FRAMES_TIMEOUT seconds has passed
+                                    and then we show a grey image instead
+                                    */
 
 #define WATCHDOG_TMO            30   /* 30 sec max motion_loop interval */
 #define WATCHDOG_KILL          -10   /* 10 sec grace period before calling thread cancel */
@@ -184,12 +182,12 @@ struct image_data;
 
 
 /*
- * Structure to hold images information
- * The idea is that this should have all information about a picture e.g. diffs, timestamp etc.
- * The exception is the label information, it uses a lot of memory
- * When the image is stored all texts motion marks etc. is written to the image
- * so we only have to send it out when/if we want.
- */
+* Structure to hold images information
+* The idea is that this should have all information about a picture e.g. diffs, timestamp etc.
+* The exception is the label information, it uses a lot of memory
+* When the image is stored all texts motion marks etc. is written to the image
+* so we only have to send it out when/if we want.
+*/
 
 /* A image can have detected motion in it, but dosn't trigger an event, if we use minimum_motion_frames */
 #define IMAGE_MOTION     1
@@ -209,11 +207,11 @@ enum CAMERA_TYPE {
 };
 
 enum WEBUI_LEVEL{
-  WEBUI_LEVEL_ALWAYS     = 0,
-  WEBUI_LEVEL_LIMITED    = 1,
-  WEBUI_LEVEL_ADVANCED   = 2,
-  WEBUI_LEVEL_RESTRICTED = 3,
-  WEBUI_LEVEL_NEVER      = 99
+WEBUI_LEVEL_ALWAYS     = 0,
+WEBUI_LEVEL_LIMITED    = 1,
+WEBUI_LEVEL_ADVANCED   = 2,
+WEBUI_LEVEL_RESTRICTED = 3,
+WEBUI_LEVEL_NEVER      = 99
 };
 
 struct params_item_ctx {
@@ -237,9 +235,9 @@ struct image_data {
     int shot;                   /* Sub second timestamp count */
 
     /*
-     * Movement center to img center distance
-     * Note: Dist is calculated distX*distX + distY*distY
-     */
+    * Movement center to img center distance
+    * Note: Dist is calculated distX*distX + distY*distY
+    */
     unsigned long cent_dist;
 
     unsigned int flags;         /* Se IMAGE_* defines */
@@ -257,37 +255,30 @@ struct stream_data {
 };
 
 /*
- * DIFFERENCES BETWEEN imgs.width, conf.width AND rotate_data.cap_width
- * (and the corresponding height values, of course)
- * ===========================================================================
- * Location      Purpose
- *
- * conf          The values in conf reflect width and height set in the
- *               configuration file. These can be set via http remote control,
- *               but they are not used internally by Motion, so it won't break
- *               anything. These values are transferred to imgs in vid_start.
- *
- * imgs          The values in imgs are the actual output dimensions. Normally
- *               the output dimensions are the same as the capture dimensions,
- *               but for 90 or 270 degrees rotation, they are not. E.g., if
- *               you capture at 320x240, and rotate 90 degrees, the output
- *               dimensions are 240x320.
- *               These values are set from the conf values in vid_start, or
- *               from the first JPEG image in netcam_start. For 90 or 270
- *               degrees rotation, they are swapped in rotate_init.
- *
- * rotate_data   The values in rotate_data are named cap_width and cap_height,
- *               and contain the capture dimensions. The difference between
- *               capture and output dimensions is explained above.
- *               These values are set in rotate_init.
- */
-
-/* date/time drawing, draw.c */
-int draw_text(unsigned char *image,
-              int width, int height,
-              int startx, int starty,
-              const char *text, int factor);
-int initialize_chars(void);
+* DIFFERENCES BETWEEN imgs.width, conf.width AND rotate_data.cap_width
+* (and the corresponding height values, of course)
+* ===========================================================================
+* Location      Purpose
+*
+* conf          The values in conf reflect width and height set in the
+*               configuration file. These can be set via http remote control,
+*               but they are not used internally by Motion, so it won't break
+*               anything. These values are transferred to imgs in vid_start.
+*
+* imgs          The values in imgs are the actual output dimensions. Normally
+*               the output dimensions are the same as the capture dimensions,
+*               but for 90 or 270 degrees rotation, they are not. E.g., if
+*               you capture at 320x240, and rotate 90 degrees, the output
+*               dimensions are 240x320.
+*               These values are set from the conf values in vid_start, or
+*               from the first JPEG image in netcam_start. For 90 or 270
+*               degrees rotation, they are swapped in rotate_init.
+*
+* rotate_data   The values in rotate_data are named cap_width and cap_height,
+*               and contain the capture dimensions. The difference between
+*               capture and output dimensions is explained above.
+*               These values are set in rotate_init.
+*/
 
 struct images {
     struct image_data *image_ring;    /* The base address of the image ring buffer */
@@ -356,9 +347,9 @@ struct rotdata {
 };
 
 /*
- *  These used to be global variables but now each thread will have its
- *  own context
- */
+*  These used to be global variables but now each thread will have its
+*  own context
+*/
 struct context {
     FILE *extpipe;
     int extpipe_open;
@@ -380,9 +371,9 @@ struct context {
 
     enum CAMERA_TYPE      camera_type;
     struct netcam_context *netcam;
-#ifdef HAVE_MMAL
-    struct mmalcam_context *mmalcam;
-#endif
+    #ifdef HAVE_MMAL
+        struct mmalcam_context *mmalcam;
+    #endif
     struct rtsp_context *rtsp;              /* this structure contains the context for normal RTSP connection */
     struct rtsp_context *rtsp_high;         /* this structure contains the context for high resolution RTSP connection */
 
@@ -402,6 +393,10 @@ struct context {
     int diffs_last[THRESHOLD_TUNE_LENGTH];
     int smartmask_speed;
 
+    /* bktr and v4l2 params used for round robin */
+    int param_input;
+    long param_freq;
+    int param_norm;
 
     /* Commands to the motion thread */
     volatile unsigned int snapshot;    /* Make a snapshot */
@@ -451,17 +446,17 @@ struct context {
 
     int sql_mask;
 
-#ifdef HAVE_SQLITE3
-    sqlite3 *database_sqlite3;
-#endif
+    #ifdef HAVE_SQLITE3
+        sqlite3 *database_sqlite3;
+    #endif
 
-#if defined(HAVE_MYSQL) || defined(HAVE_MARIADB)
-    MYSQL *database;
-#endif
+    #if defined(HAVE_MYSQL) || defined(HAVE_MARIADB)
+        MYSQL *database;
+    #endif
 
-#ifdef HAVE_PGSQL
-    PGconn *database_pg;
-#endif
+    #ifdef HAVE_PGSQL
+        PGconn *database_pg;
+    #endif
 
     int movie_fps;
     char newfilename[PATH_MAX];
@@ -528,13 +523,13 @@ extern FILE *ptr_logfile;
 /* TLS keys below */
 extern pthread_key_t tls_key_threadnr; /* key for thread number */
 
-int http_bindsock(int, int, int);
-void * mymalloc(size_t);
-void * myrealloc(void *, size_t, const char *);
-FILE * myfopen(const char *, const char *);
-int myfclose(FILE *);
-size_t mystrftime(const struct context *, char *, size_t, const char *, const struct timeval *, const char *, int);
-int create_path(const char *);
+void *mymalloc(size_t nbytes);
+void *myrealloc(void *ptr, size_t size, const char *desc);
+FILE *myfopen(const char *path, const char *mode);
+int myfclose(FILE *fh);
+size_t mystrftime(const struct context *cnt, char *s, size_t max, const char *userformat
+            , const struct timeval *tv1, const char *filename, int sqltype);
+int create_path(const char *path);
 
 void util_threadname_set(const char *abbr, int threadnbr, const char *threadname);
 void util_threadname_get(char *threadname);
@@ -543,5 +538,11 @@ void util_trim(char *parm);
 void util_parms_free(struct params_context *parameters);
 void util_parms_parse(struct params_context *parameters, char *confparm);
 void util_parms_add_default(struct params_context *parameters, const char *parm_nm, const char *parm_vl);
+
+int mystrceq(const char *var1, const char *var2);
+int mystrcne(const char *var1, const char *var2);
+int mystreq(const char *var1, const char *var2);
+int mystrne(const char *var1, const char *var2);
+
 
 #endif /* _INCLUDE_MOTION_H */
