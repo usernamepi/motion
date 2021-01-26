@@ -14,11 +14,26 @@
  *   along with Motion.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _INCLUDE_WEBU_STREAM_H_
-#define _INCLUDE_WEBU_STREAM_H_
+/**
+ *      dbse.h
+ *
+ *      Headers associated with functions in the dbse.c module.
+ *
+ */
 
+#ifndef _INCLUDE_DBSE_H
+#define _INCLUDE_DBSE_H
 
-mymhd_retcd webu_stream_mjpeg(struct webui_ctx *webui);
-mymhd_retcd webu_stream_static(struct webui_ctx *webui);
+void dbse_global_init(struct context **cntlist);
+void dbse_global_deinit(void);
+
+int dbse_init(struct context *cnt, struct context **cntlist);
+void dbse_deinit(struct context *cnt);
+
+void dbse_sqlmask_update(struct context *cnt);
+void dbse_firstmotion(struct context *cnt);
+void dbse_newfile(struct context *cnt, char *filename, int sqltype, struct timeval *tv1);
+void dbse_fileclose(struct context *cnt, char *filename, int sqltype, struct timeval *tv1);
+
 
 #endif

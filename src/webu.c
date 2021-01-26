@@ -46,10 +46,13 @@
 #include <sys/socket.h>
 
 #include "motion.h"
+#include "util.h"
+#include "logger.h"
 #include "webu.h"
 #include "webu_html.h"
 #include "webu_text.h"
 #include "webu_stream.h"
+#include "webu_status.h"
 #include "translate.h"
 
 /* Context to pass the parms to functions to start mhd */
@@ -66,13 +69,6 @@ struct mhdstart_ctx {
     struct sockaddr_in      lpbk_ipv4;
     struct sockaddr_in6     lpbk_ipv6;
 };
-
-#if MHD_VERSION >= 0x00097002
-    typedef enum MHD_Result mymhd_retcd;
-#else
-    typedef int mymhd_retcd;
-#endif
-
 
 static void webu_context_init(struct context **cntlst, struct context *cnt, struct webui_ctx *webui)
 {
@@ -920,11 +916,11 @@ static void webu_hostname(struct webui_ctx *webui, int ctrl)
     return;
 }
 
-static int webu_mhd_digest_fail(struct webui_ctx *webui,int signal_stale)
+static mymhd_retcd webu_mhd_digest_fail(struct webui_ctx *webui,int signal_stale)
 {
     /* Create a denied response to user*/
     struct MHD_Response *response;
-    int retcd;
+    mymhd_retcd retcd;
 
     webui->authenticated = FALSE;
 
@@ -944,7 +940,7 @@ static int webu_mhd_digest_fail(struct webui_ctx *webui,int signal_stale)
     return retcd;
 }
 
-static int webu_mhd_digest(struct webui_ctx *webui)
+static mymhd_retcd webu_mhd_digest(struct webui_ctx *webui)
 {
     /* Perform the digest authentication.  This function gets called a couple of
      * times by MHD during the authentication process.
@@ -989,7 +985,7 @@ static int webu_mhd_digest(struct webui_ctx *webui)
 
 }
 
-static int webu_mhd_basic_fail(struct webui_ctx *webui)
+static mymhd_retcd webu_mhd_basic_fail(struct webui_ctx *webui)
 {
     /* Create a denied response to user*/
     struct MHD_Response *response;
@@ -1008,11 +1004,15 @@ static int webu_mhd_basic_fail(struct webui_ctx *webui)
 
     MHD_destroy_response(response);
 
-    return retcd;
+    if (retcd == MHD_YES) {
+        return MHD_YES;
+    } else {
+        return MHD_NO;
+    }
 
 }
 
-static int webu_mhd_basic(struct webui_ctx *webui)
+static mymhd_retcd webu_mhd_basic(struct webui_ctx *webui)
 {
     /* Perform Basic Authentication.  */
     char *user, *pass;
@@ -1107,7 +1107,7 @@ static void webu_mhd_auth_parse(struct webui_ctx *webui, int ctrl)
 
 }
 
-static int webu_mhd_auth(struct webui_ctx *webui, int ctrl)
+static mymhd_retcd webu_mhd_auth(struct webui_ctx *webui, int ctrl)
 {
 
     /* Set everything up for calling the authentication functions */
@@ -1169,7 +1169,7 @@ static int webu_mhd_auth(struct webui_ctx *webui, int ctrl)
 
 }
 
-static int webu_mhd_send(struct webui_ctx *webui, int ctrl)
+static mymhd_retcd webu_mhd_send(struct webui_ctx *webui, int ctrl)
 {
     /* Send the response that we created back to the user.  Now if the user
      * provided a really bad URL, then we couldn't determine which Motion context
@@ -1180,7 +1180,7 @@ static int webu_mhd_send(struct webui_ctx *webui, int ctrl)
      * The ctrl parameter is a boolean which just says whether the request is for
      * the webcontrol versus stream
      */
-    int retcd;
+    mymhd_retcd retcd;
     struct MHD_Response *response;
 
     response = MHD_create_response_from_buffer (strlen(webui->resp_page)
@@ -1206,7 +1206,12 @@ static int webu_mhd_send(struct webui_ctx *webui, int ctrl)
                 MHD_add_response_header (response, MHD_HTTP_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN
                     , webui->cnt->conf.stream_cors_header);
             }
-            MHD_add_response_header (response, MHD_HTTP_HEADER_CONTENT_TYPE, "text/html");
+            if ((webui->cnct_type == WEBUI_CNCT_STATUS_LIST) ||
+                (webui->cnct_type == WEBUI_CNCT_STATUS_ONE)) {
+                MHD_add_response_header (response, MHD_HTTP_HEADER_CONTENT_TYPE, "application/json");
+            } else {
+                MHD_add_response_header (response, MHD_HTTP_HEADER_CONTENT_TYPE, "text/html");
+            }
         }
     }
 
@@ -1241,6 +1246,22 @@ static void webu_answer_strm_type(struct webui_ctx *webui)
                mystreq(webui->uri_camid,"current")) {
         webui->cnct_type = WEBUI_CNCT_STATIC;
 
+    } else if (mystreq(webui->uri_camid, "cameras.json") &&
+               strlen(webui->uri_cmd1) == 0) {
+        webui->cnct_type = WEBUI_CNCT_STATUS_LIST;
+
+    } else if (mystreq(webui->uri_cmd1, "cameras.json") &&
+               strlen(webui->uri_cmd2) == 0) {
+        webui->cnct_type = WEBUI_CNCT_STATUS_LIST;
+
+    } else if (mystreq(webui->uri_camid, "status.json") &&
+               strlen(webui->uri_cmd1) == 0) {
+        webui->cnct_type = WEBUI_CNCT_STATUS_ONE;
+
+    } else if (mystreq(webui->uri_cmd1, "status.json") &&
+               strlen(webui->uri_cmd2) == 0) {
+        webui->cnct_type = WEBUI_CNCT_STATUS_ONE;
+
     } else if ((strlen(webui->uri_camid) > 0) &&
                (strlen(webui->uri_cmd1) == 0)) {
         webui->cnct_type = WEBUI_CNCT_FULL;
@@ -1257,7 +1278,7 @@ static mymhd_retcd webu_answer_ctrl(void *cls, struct MHD_Connection *connection
 {
 
     /* This function "answers" the request for a webcontrol.*/
-    int retcd;
+    mymhd_retcd retcd;
     struct webui_ctx *webui = *ptr;
 
     /* Eliminate compiler warnings */
@@ -1329,7 +1350,7 @@ static mymhd_retcd webu_answer_strm(void *cls, struct MHD_Connection *connection
 {
 
     /* Answer the request for all the streams*/
-    int retcd;
+    mymhd_retcd retcd;
     struct webui_ctx *webui = *ptr;
 
     /* Eliminate compiler warnings */
@@ -1361,14 +1382,16 @@ static mymhd_retcd webu_answer_strm(void *cls, struct MHD_Connection *connection
         return retcd;
     }
 
-    /* Do not answer a request until the motion loop has completed at least once */
+    /* Do not answer a request until the motion loop has completed at least once.
+     * Required for the Motioneye application
+    */
     if (webui->cnt->passflag == 0) {
         MOTION_LOG(DBG, TYPE_STREAM, NO_ERRNO, _("Stream picture is not ready yet"));
         return MHD_NO;
     }
 
     if (webui->cnt->webcontrol_finish) {
-        MOTION_LOG(DBG, TYPE_STREAM, NO_ERRNO, _("Stream is about to finish"));
+        MOTION_LOG(DBG, TYPE_STREAM, NO_ERRNO, _("Stream process requested to finish."));
         return MHD_NO;
     }
 
@@ -1388,7 +1411,11 @@ static mymhd_retcd webu_answer_strm(void *cls, struct MHD_Connection *connection
     webu_answer_strm_type(webui);
 
     retcd = 0;
-    if (webui->cnct_type == WEBUI_CNCT_STATIC) {
+    if ((webui->cnct_type == WEBUI_CNCT_STATUS_LIST) ||
+        (webui->cnct_type == WEBUI_CNCT_STATUS_ONE)) {
+        webu_status_main(webui);
+        retcd = webu_mhd_send(webui, FALSE);
+    } else if (webui->cnct_type == WEBUI_CNCT_STATIC) {
         retcd = webu_stream_static(webui);
         if (retcd == MHD_NO) {
             webu_badreq(webui);
@@ -1406,7 +1433,7 @@ static mymhd_retcd webu_answer_strm(void *cls, struct MHD_Connection *connection
     }
 
     if (retcd == MHD_NO) {
-        MOTION_LOG(NTC, TYPE_STREAM, NO_ERRNO ,_("send page failed %d"),retcd);
+        MOTION_LOG(NTC, TYPE_STREAM, NO_ERRNO ,_("Send page failed."));
     }
     return retcd;
 

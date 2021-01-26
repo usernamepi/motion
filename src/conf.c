@@ -42,6 +42,8 @@
 #include <string.h>
 #include "translate.h"
 #include "motion.h"
+#include "util.h"
+#include "logger.h"
 
 #define EXTENSION ".conf"
 
@@ -1903,7 +1905,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "vid_control_params",
-    "4.3.1",
+    "4.3.2",
     "\"vid_control_params\" replaced with \"video_params\"",
     CONF_OFFSET(video_params),
     "video_params",
@@ -1911,7 +1913,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "v4l2_palette",
-    "4.3.1",
+    "4.3.2",
     "\"v4l2_palette\" replaced with \"video_params\"",
     CONF_OFFSET(video_params),
     "video_params",
@@ -1919,7 +1921,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "input",
-    "4.3.1",
+    "4.3.2",
     "\"input\" replaced with \"video_params\"",
     CONF_OFFSET(video_params),
     "video_params",
@@ -1927,7 +1929,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "norm",
-    "4.3.1",
+    "4.3.2",
     "\"norm\" replaced with \"video_params\"",
     CONF_OFFSET(video_params),
     "video_params",
@@ -1935,7 +1937,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "frequency",
-    "4.3.1",
+    "4.3.2",
     "\"frequency\" replaced with \"video_params\"",
     CONF_OFFSET(video_params),
     "video_params",
@@ -1943,7 +1945,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "rtsp_uses_tcp",
-    "4.3.1",
+    "4.3.2",
     "\"rtsp_uses_tcp\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1951,7 +1953,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_use_tcp",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_use_tcp\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1959,7 +1961,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_rate",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_rate\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1967,7 +1969,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_ratehigh",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_ratehigh\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1975,7 +1977,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_decoder",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_decoder\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1983,7 +1985,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_proxy",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_proxy\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1991,7 +1993,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_keepalive",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_keepalive\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -1999,7 +2001,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_tolerant_check",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_tolerant_check\" replaced with \"netcam_params\"",
     CONF_OFFSET(netcam_params),
     "netcam_params",
@@ -2007,7 +2009,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "videodevice",
-    "4.3.1",
+    "4.3.2",
     "\"videodevice\" replaced with \"video_device\"",
     CONF_OFFSET(video_device),
     "video_device",
@@ -2015,7 +2017,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "tunerdevice",
-    "4.3.1",
+    "4.3.2",
     "\"tunerdevice\" replaced with \"tuner_device\"",
     CONF_OFFSET(tuner_device),
     "tuner_device",
@@ -2023,7 +2025,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "mmalcam_control_params",
-    "4.3.1",
+    "4.3.2",
     "\"mmalcam_control_params\" replaced with \"mmalcam_params\"",
     CONF_OFFSET(mmalcam_params),
     "mmalcam_params",
@@ -2031,7 +2033,7 @@ dep_config_param dep_config_params[] = {
     },
     {
     "netcam_highres",
-    "4.3.1",
+    "4.3.2",
     "\"netcam_highres\" replaced with \"netcam_high_url\"",
     CONF_OFFSET(netcam_high_url),
     "netcam_high_url",
@@ -3071,75 +3073,6 @@ struct context **copy_uri(struct context **cnt, const char *str, int val)
     cnt = copy_string(cnt, str, val);
     return cnt;
 
-}
-
-/**
- * mystrcpy
- *      Is used to assign string type fields (e.g. config options)
- *      In a way so that we the memory is malloc'ed to fit the string.
- *      If a field is already pointing to a string (not NULL) the memory of the
- *      old string is free'd and new memory is malloc'ed and filled with the
- *      new string is copied into the the memory and with the char pointer
- *      pointing to the new string.
- *
- *      from - pointer to the new string we want to copy
- *      to   - the pointer to the current string (or pointing to NULL)
- *              If not NULL the memory it points to is free'd.
- *
- * Returns pointer to the new string which is in malloc'ed memory
- * FIXME The strings that are malloc'ed with this function should be freed
- * when the motion program is terminated normally instead of relying on the
- * OS to clean up.
- */
-char *mystrcpy(char *to, const char *from)
-{
-    /*
-     * Free the memory used by the to string, if such memory exists,
-     * and return a pointer to a freshly malloc()'d string with the
-     * same value as from.
-     */
-
-    if (to != NULL) {
-        free(to);
-    }
-
-    return mystrdup(from);
-}
-
-/**
- * mystrdup
- *      Truncates the string to the length given by the environment
- *      variable PATH_MAX to ensure that config options can always contain
- *      a really long path but no more than that.
- *
- * Returns a pointer to a freshly malloc()'d string with the same
- *      value as the string that the input parameter 'from' points to,
- *      or NULL if the from string is 0 characters.
- */
-char *mystrdup(const char *from)
-{
-    char *tmp;
-    size_t stringlength;
-
-    if (from == NULL || !strlen(from)) {
-        tmp = NULL;
-    } else {
-        stringlength = strlen(from);
-        stringlength = (stringlength < PATH_MAX ? stringlength : PATH_MAX);
-        tmp = mymalloc(stringlength + 1);
-        strncpy(tmp, from, stringlength);
-
-        /*
-         * We must ensure the string always has a NULL terminator.
-         * This necessary because strncpy will not append a NULL terminator
-         * if the original string is greater than string length.
-         */
-        tmp += stringlength;
-        *tmp = '\0';
-        tmp -= stringlength;
-    }
-
-    return tmp;
 }
 
 /**

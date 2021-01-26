@@ -27,6 +27,8 @@
  */
 
 #include "motion.h"
+#include "util.h"
+#include "logger.h"
 #include "webu.h"
 #include "webu_stream.h"
 #include "translate.h"
@@ -290,10 +292,10 @@ static void webu_stream_cnct_count(struct webui_ctx *webui)
 
 }
 
-int webu_stream_mjpeg(struct webui_ctx *webui)
+mymhd_retcd webu_stream_mjpeg(struct webui_ctx *webui)
 {
     /* Create the stream for the motion jpeg */
-    int retcd;
+    mymhd_retcd retcd;
     struct MHD_Response *response;
 
     if (webu_stream_checks(webui) == -1) {
@@ -327,10 +329,10 @@ int webu_stream_mjpeg(struct webui_ctx *webui)
     return retcd;
 }
 
-int webu_stream_static(struct webui_ctx *webui)
+mymhd_retcd webu_stream_static(struct webui_ctx *webui)
 {
     /* Create the response for the static image request*/
-    int retcd;
+    mymhd_retcd retcd;
     struct MHD_Response *response;
     char resp_used[20];
 
@@ -349,7 +351,7 @@ int webu_stream_static(struct webui_ctx *webui)
         return MHD_NO;
     }
 
-    response = MHD_create_response_from_buffer (webui->resp_size
+    response = MHD_create_response_from_buffer (webui->resp_used
         ,(void *)webui->resp_page, MHD_RESPMEM_MUST_COPY);
     if (!response) {
         MOTION_LOG(ERR, TYPE_STREAM, NO_ERRNO, _("Invalid response"));

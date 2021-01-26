@@ -14,11 +14,9 @@
  *   along with Motion.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-#ifndef _INCLUDE_WEBU_STREAM_H_
-#define _INCLUDE_WEBU_STREAM_H_
+#ifndef _INCLUDE_WEBU_STATUS_H_
+#define _INCLUDE_WEBU_STATUS_H_
 
-
-mymhd_retcd webu_stream_mjpeg(struct webui_ctx *webui);
-mymhd_retcd webu_stream_static(struct webui_ctx *webui);
+void webu_status_main(struct webui_ctx *webui);
 
 #endif
