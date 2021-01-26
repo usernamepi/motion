@@ -378,6 +378,10 @@ static void mystrftime_long (const struct context *cnt, int width, const char *w
         sprintf(out, "%*s", width, VERSION);
         return;
     }
+    if (SPECIFIERWORD("name")) {
+        sprintf(out, "%*s", width, cnt->conf.camera_name);
+        return;
+    }
 
     // Not a valid modifier keyword. Log the error and ignore.
     MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO,
