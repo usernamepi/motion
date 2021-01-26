@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo apt-get install autoconf automake build-essential pkgconf libtool libzip-dev libjpeg-dev git libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libavdevice-dev libwebp-dev libmicrohttpd-dev
+sudo apt-get install autoconf automake build-essential pkgconf libtool libzip-dev libjpeg-dev git libavformat-dev libavcodec-dev libavutil-dev libswscale-dev libavdevice-dev libwebp-dev libmicrohttpd-dev autopoint
 
 autoreconf -fiv
 
