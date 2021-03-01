@@ -8,6 +8,7 @@ arch=`dpkg --print-architecture`
 if [ "$ARCH" == "arm" ] || [ "$arch" == "armhf" ]
 then
 	CFLAGS="-O3 -std=gnu99 -march=native -mtune=native -mfloat-abi=hard -mfpu=neon" ./configure
+	#CFLAGS="-O3 -std=gnu99 -march=armv7 -mtune=cortex-a9 -mfloat-abi=hard -mfpu=neon" ./configure
 else
 	CFLAGS="-O3 -std=gnu99 -march=native" ./configure
 fi
