@@ -38,8 +38,17 @@
     #include <webp/mux.h>
 #endif /* HAVE_WEBP */
 
+#if (defined(__x86_64) || defined(__i386))
+#pragma message "Compiling for intel"
+#include <immintrin.h>
+#include "NEON_2_SSE.h"
+#define USE_SIMD 1
+#endif
+
 #if defined(__ARM_NEON)
+#pragma message "Compiling for arm"
 #include <arm_neon.h>
+#define USE_SIMD 1
 #endif
 
 /* EXIF image data is always in TIFF format, even if embedded in another
@@ -1004,7 +1013,7 @@ void put_fixed_mask(struct context *cnt, const char *file)
 void pic_scale_img(int width_src, int height_src, unsigned char *img_src, unsigned char *img_dst)
 {
 
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 
     int x, y;
     unsigned char *out = img_dst;

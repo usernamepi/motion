@@ -30,9 +30,19 @@
     #define HAVE_MMX
     #include "mmx.h"
 #endif
+#undef HAVE_MMX
+
+#if (defined(__x86_64) || defined(__i386))
+#pragma message "Compiling for intel"
+#include <immintrin.h>
+#include "NEON_2_SSE.h"
+#define USE_SIMD 1
+#endif
 
 #if defined(__ARM_NEON)
+#pragma message "Compiling for arm"
 #include <arm_neon.h>
+#define USE_SIMD 1
 #endif
 
 #define MAX2(x, y) ((x) > (y) ? (x) : (y))
@@ -42,7 +52,7 @@
  * alg_locate_center_size
  *      Locates the center and size of the movement.
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 void alg_locate_center_size(struct images *imgs, int width, int height, struct coord *cent)
 {
     unsigned char *out = imgs->img_motion.image_norm;
@@ -962,7 +972,7 @@ static int alg_labeling(struct context *cnt)
  * dilate9
  *      Dilates a 3x3 box.
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 int dilate9(unsigned char *img, int width, int height, void *buffer)
 {
     const uint8x16_t vff = vdupq_n_u8(0xFF);
@@ -1230,7 +1240,7 @@ static int dilate9(unsigned char *img, int width, int height, void *buffer)
  * dilate5
  *      Dilates a + shape.
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 int dilate5(unsigned char *img, int width, int height, void *buffer)
 {
     const uint8x16_t vff = vdupq_n_u8(0xFF);
@@ -1470,7 +1480,7 @@ static int dilate5(unsigned char *img, int width, int height, void *buffer)
  * erode9
  *      Erodes a 3x3 box.
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 int erode9(unsigned char *const img, int width, int height, void *buffer, unsigned char flag)
 {
     const uint8x16_t vff = vdupq_n_u8(0xFF);
@@ -1695,7 +1705,7 @@ static int erode9(unsigned char *img, int width, int height, void *buffer, unsig
  * erode5
  *      Erodes in a + shape.
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 int erode5(unsigned char *const img, int width, int height, void *buffer, unsigned char flag)
 {
     const uint8x16_t vff = vdupq_n_u8(0xFF);
@@ -1999,7 +2009,7 @@ void alg_tune_smartmask(struct context *cnt)
  * alg_diff_standard
  *
  */
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 int alg_diff_standard(struct context *cnt, unsigned char *new)
 {
     struct images *imgs = &cnt->imgs;
@@ -2534,7 +2544,7 @@ int alg_switchfilter(struct context *cnt, int diffs, unsigned char *newimg)
 #define ACCEPT_STATIC_OBJECT_TIME 10  /* Seconds */
 #define EXCLUDE_LEVEL_PERCENT 20
 
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 void alg_update_reference_frame(struct context *cnt, int action)
 {
     int accept_timer = cnt->lastrate * ACCEPT_STATIC_OBJECT_TIME;
