@@ -79,6 +79,9 @@ int draw_text(unsigned char *image, unsigned int startx, unsigned int starty, un
     return 0;
 }
 
+#define TEST_CYCLES 100
+
+#define TEST_LOCATE_CENTER_SIZE_RELAXED
 void test_locate_center_size(int width, int height, unsigned char * out, int * lables) {
     width -= 4;
     height -= 2;
@@ -94,23 +97,39 @@ void test_locate_center_size(int width, int height, unsigned char * out, int * l
     alg_locate_center_size(&img, width, height, &cent);
     uint64_t start, first, second;
     TS_MARK(start);
-    alg_locate_center_size_c(&img, width, height, &cent_ref);
+    for(int t=0;t<TEST_CYCLES;t++)
+    {
+        alg_locate_center_size_c(&img, width, height, &cent_ref);
+    }
     TS_MARK(first);
-    alg_locate_center_size(&img, width, height, &cent);
+    for(int t=0;t<TEST_CYCLES;t++)
+    {
+        alg_locate_center_size(&img, width, height, &cent_ref);
+    }
     TS_MARK(second);
 
-    // assert(cent.x == cent_ref.x);
-    // assert(cent.y == cent_ref.y);
-    // assert(cent.maxx == cent_ref.maxx);
-    // assert(cent.maxy == cent_ref.maxy);
-    // assert(cent.minx == cent_ref.minx);
-    // assert(cent.miny == cent_ref.miny);
+#ifndef TEST_LOCATE_CENTER_SIZE_RELAXED
+    assert(cent.x == cent_ref.x);
+    assert(cent.y == cent_ref.y);
+    assert(cent.maxx == cent_ref.maxx);
+    assert(cent.maxy == cent_ref.maxy);
+    assert(cent.minx == cent_ref.minx);
+    assert(cent.miny == cent_ref.miny);
+#else
     assert( abs(cent.x - cent_ref.x) <= 4 );
     assert( abs(cent.y - cent_ref.y) <= 4 );
     assert( abs(cent.maxx - cent_ref.maxx) <= 4 );
     assert( abs(cent.maxy - cent_ref.maxy) <= 4 );
     assert( abs(cent.minx - cent_ref.minx) <= 4 );
     assert( abs(cent.miny - cent_ref.miny) <= 4 );
+    
+    printf("cent.x=%d  cent_ref.x=%d\n",cent.x,cent_ref.x);
+    printf("cent.y=%d  cent_ref.y=%d\n",cent.y,cent_ref.y);
+    printf("cent.maxx=%d  cent_ref.maxx=%d\n",cent.maxx,cent_ref.maxx);
+    printf("cent.maxy=%d  cent_ref.maxy=%d\n",cent.maxy,cent_ref.maxy);
+    printf("cent.minx=%d  cent_ref.minx=%d\n",cent.minx,cent_ref.minx);
+    printf("cent.miny=%d  cent_ref.miny=%d\n",cent.miny,cent_ref.miny);
+#endif
 
     int64_t time1, time2;
     TS_CONVERT(first - start, time1);
@@ -122,23 +141,39 @@ void test_locate_center_size(int width, int height, unsigned char * out, int * l
         alg_locate_center_size_c(&img, width, height, &cent_ref);
         alg_locate_center_size(&img, width, height, &cent);
         TS_MARK(start);
-        alg_locate_center_size_c(&img, width, height, &cent_ref);
+        for(int t=0;t<TEST_CYCLES;t++)
+        {
+            alg_locate_center_size_c(&img, width, height, &cent_ref);
+        }
         TS_MARK(first);
-        alg_locate_center_size(&img, width, height, &cent);
+        for(int t=0;t<TEST_CYCLES;t++)
+        {
+            alg_locate_center_size(&img, width, height, &cent_ref);
+        }
         TS_MARK(second);
 
-        // assert(cent.x == cent_ref.x);
-        // assert(cent.y == cent_ref.y);
-        // assert(cent.maxx == cent_ref.maxx);
-        // assert(cent.maxy == cent_ref.maxy);
-        // assert(cent.minx == cent_ref.minx);
-        // assert(cent.miny == cent_ref.miny);
+#ifndef TEST_LOCATE_CENTER_SIZE_RELAXED
+        assert(cent.x == cent_ref.x);
+        assert(cent.y == cent_ref.y);
+        assert(cent.maxx == cent_ref.maxx);
+        assert(cent.maxy == cent_ref.maxy);
+        assert(cent.minx == cent_ref.minx);
+        assert(cent.miny == cent_ref.miny);
+#else
         assert( abs(cent.x - cent_ref.x) <= 4 );
         assert( abs(cent.y - cent_ref.y) <= 4 );
         assert( abs(cent.maxx - cent_ref.maxx) <= 4 );
         assert( abs(cent.maxy - cent_ref.maxy) <= 4 );
         assert( abs(cent.minx - cent_ref.minx) <= 4 );
         assert( abs(cent.miny - cent_ref.miny) <= 4 );
+
+        printf("cent.x=%d  cent_ref.x=%d\n",cent.x,cent_ref.x);
+        printf("cent.y=%d  cent_ref.y=%d\n",cent.y,cent_ref.y);
+        printf("cent.maxx=%d  cent_ref.maxx=%d\n",cent.maxx,cent_ref.maxx);
+        printf("cent.maxy=%d  cent_ref.maxy=%d\n",cent.maxy,cent_ref.maxy);
+        printf("cent.minx=%d  cent_ref.minx=%d\n",cent.minx,cent_ref.minx);
+        printf("cent.miny=%d  cent_ref.miny=%d\n",cent.miny,cent_ref.miny);
+#endif
 
         TS_CONVERT(first - start, time1);
         TS_CONVERT(second - first, time2);
