@@ -33,9 +33,17 @@
 #include "video_bktr.h"
 #include "jpegutils.h"
 
+#if (defined(__x86_64) || defined(__i386))
+#pragma message "Compiling for SIMD for Intel (SSE)"
+#include <immintrin.h>
+#include "NEON_2_SSE.h"
+#define USE_SIMD 1
+#endif
+
 #if defined(__ARM_NEON)
+#pragma message "Compiling with SIMD for ARM (NEON)"
 #include <arm_neon.h>
-#pragma  message "Compiling with ARM_NEON"
+#define USE_SIMD 1
 #endif
 
 typedef unsigned char uint8_t;
@@ -278,7 +286,7 @@ void vid_bayer2rgb24(unsigned char *dst, unsigned char *src, long int width, lon
 
 }
 
-#if defined(__ARM_NEON)
+#if defined(USE_SIMD)
 
 void vid_yuv422to420p(unsigned char *map, unsigned char *cap_map, int width, int height)
 {

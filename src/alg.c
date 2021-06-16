@@ -33,14 +33,14 @@
 #undef HAVE_MMX
 
 #if (defined(__x86_64) || defined(__i386))
-#pragma message "Compiling for intel"
+#pragma message "Compiling for SIMD for Intel (SSE)"
 #include <immintrin.h>
 #include "NEON_2_SSE.h"
 #define USE_SIMD 1
 #endif
 
 #if defined(__ARM_NEON)
-#pragma message "Compiling for arm"
+#pragma message "Compiling with SIMD for ARM (NEON)"
 #include <arm_neon.h>
 #define USE_SIMD 1
 #endif
