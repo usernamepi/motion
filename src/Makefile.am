@@ -1,4 +1,4 @@
-AM_CPPFLAGS= -Dsysconfdir=\"$(sysconfdir)/motion\" -DLOCALEDIR=\"$(DESTDIR)$(localedir)\"
+AM_CPPFLAGS= -Dsysconfdir=\"$(sysconfdir)/motion\" -DLOCALEDIR=\"$(DESTDIR)$(localedir)\" -DUSE_SSE4
 CFLAGS += -msse4.2
 
 if INC_MMAL_SRC
