@@ -287,7 +287,7 @@ static void test_alg_update_reference_frame_one_case(struct context *cnt,
 }
 
 static void test_alg_update_reference_frame(int width, int height, unsigned char noise,
-                                     unsigned char * image_virgin, unsigned char * ref,
+                                     unsigned char * image_vprvcy, unsigned char * ref,
                                      unsigned char * smartmask, unsigned char * out,
                                      int *ref_dyn)
 {
@@ -306,7 +306,7 @@ static void test_alg_update_reference_frame(int width, int height, unsigned char
     struct context cnt;
     cnt.lastrate = 3;
     cnt.noise = noise;
-    cnt.imgs.image_virgin.image_norm = image_virgin;
+    cnt.imgs.image_vprvcy.image_norm = image_vprvcy;
     cnt.imgs.smartmask_final = smartmask;
     cnt.imgs.img_motion.image_norm = out;
     cnt.imgs.motionsize = width * height;
