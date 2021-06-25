@@ -66,7 +66,7 @@
     #endif
 
     /*********************************************/
-    #if ( MYFFVER >= 57000)
+    #if (MYFFVER >= 57000)
         #define MY_CODEC_FLAG_GLOBAL_HEADER AV_CODEC_FLAG_GLOBAL_HEADER
         #define MY_CODEC_FLAG_QSCALE        AV_CODEC_FLAG_QSCALE
     #else
@@ -74,14 +74,21 @@
         #define MY_CODEC_FLAG_QSCALE        CODEC_FLAG_QSCALE
     #endif
 
+    #if  (MYFFVER >= 59000)
+        typedef const AVCodec my_AVCodec; /* Version independent for AVCodec*/
+    #else
+        typedef AVCodec my_AVCodec; /* Version independent for AVCodec*/
+    #endif
+
     AVFrame *my_frame_alloc(void);
     void my_frame_free(AVFrame *frame);
-    void my_packet_unref(AVPacket pkt);
+    void my_packet_free(AVPacket *pkt);
     void my_avcodec_close(AVCodecContext *codec_context);
     int my_image_get_buffer_size(enum MyPixelFormat pix_fmt, int width, int height);
     int my_image_copy_to_buffer(AVFrame *frame,uint8_t *buffer_ptr,enum MyPixelFormat pix_fmt,int width,int height,int dest_size);
     int my_image_fill_arrays(AVFrame *frame,uint8_t *buffer_ptr,enum MyPixelFormat pix_fmt,int width,int height);
     int my_copy_packet(AVPacket *dest_pkt, AVPacket *src_pkt);
+    AVPacket *my_packet_alloc(AVPacket *pkt);
 
 #endif /* HAVE_FFMPEG */
 

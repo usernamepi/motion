@@ -28,6 +28,7 @@
 
 #ifdef HAVE_FFMPEG
 
+
 /*********************************************/
 AVFrame *my_frame_alloc(void)
 {
@@ -100,12 +101,12 @@ int my_image_fill_arrays(AVFrame *frame,uint8_t *buffer_ptr,enum MyPixelFormat p
     return retcd;
 }
 /*********************************************/
-void my_packet_unref(AVPacket pkt)
+void my_packet_free(AVPacket *pkt)
 {
-    #if ( MYFFVER >= 57000)
-        av_packet_unref(&pkt);
+    #if (MYFFVER >= 57041)
+        av_packet_free(&pkt);
     #else
-        av_free_packet(&pkt);
+        av_free_packet(pkt);
     #endif
 }
 /*********************************************/
@@ -133,6 +134,22 @@ int my_copy_packet(AVPacket *dest_pkt, AVPacket *src_pkt)
             return 0;
         }
     #endif
+}
+
+/*********************************************/
+AVPacket *my_packet_alloc(AVPacket *pkt)
+{
+     if (pkt != NULL) {
+        my_packet_free(pkt);
+    };
+    pkt = av_packet_alloc();
+    #if (MYFFVER < 58076)
+        av_init_packet(pkt);
+        pkt->data = NULL;
+        pkt->size = 0;
+    #endif
+
+    return pkt;
 }
 
 #endif
@@ -371,6 +388,13 @@ static void mystrftime_long (const struct context *cnt, int width, const char *w
         return;
     }
     if (SPECIFIERWORD("dbeventid")) {
+        #ifdef HAVE_PGSQL
+            if (cnt->eid_db_format == dbeid_no_return) {
+                MOTION_LOG(ERR, TYPE_DB, NO_ERRNO,
+                    _("Used %{dbeventid} but sql_query_start returned no valid event ID"));
+                ((struct context *)cnt)->eid_db_format = dbeid_use_error;
+            }
+        #endif
         sprintf(out, "%*llu", width, cnt->database_event_id);
         return;
     }
@@ -548,7 +572,7 @@ size_t mystrftime(const struct context *cnt, char *s, size_t max, const char *us
                     while ((*pos_userformat != '}') && (*pos_userformat != 0)) {
                         ++pos_userformat;
                     }
-                    mystrftime_long (cnt, width, word, (int)(pos_userformat-word), tempstr);
+                    mystrftime_long ((struct context *)cnt, width, word, (int)(pos_userformat-word), tempstr);
                     if (*pos_userformat == '\0') {
                         --pos_userformat;
                     }

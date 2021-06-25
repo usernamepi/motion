@@ -45,8 +45,8 @@ enum USER_CODEC {
         AVFormatContext *oc;
         AVStream *video_st;
         AVCodecContext *ctx_codec;
-        AVCodec *codec;
-        AVPacket pkt;
+        my_AVCodec      *codec;
+        AVPacket *pkt;
         AVFrame *picture;       /* contains default image pointers */
         AVDictionary *opts;
         struct rtsp_context *rtsp_data;
