@@ -47,7 +47,7 @@ log_level 6
 ; target_dir value
 
 # Video device (e.g. /dev/video0) to be used for capturing.
-videodevice /dev/video0
+video_device /dev/video0
 
 # v4l2_palette allows one to choose preferable palette to be use by motion
 # See motion_guide.html for the valid options and values.  (default: 17)

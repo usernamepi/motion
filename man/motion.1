@@ -341,15 +341,12 @@ Description:
 .fi
 .RS
 Full connection URL string to use to connect to a network camera.
-The URL must provide a stream of images instead of only a static image.
-The following prefixes are recognized
+In addition to standard camera protocols, the following prefixes are
+added by the Motion application.
 
 .RS
-http://
 ftp://
 mjpg://
-rtsp://
-rtmp://
 mjpeg://
 file://
 v4l2://
@@ -357,9 +354,6 @@ v4l2://
 
 The connection string is camera specific.
 It is usually the same as what other video playing applications would use to connect to the camera stream.
-Motion currently only supports basic authentication for the cameras.
-Digest is not currently supported.
-Basic authentication can be specified in the URL or via the netcam_userpass option.
 .RE
 .RE
 
@@ -670,6 +664,19 @@ Description:
 .fi
 .RS
 Always save images even if there was no motion.
+.RE
+.RE
+
+.TP
+.B pause
+.RS
+.nf
+Values: on/off
+Default: off
+Description:
+.fi
+.RS
+When Motion is started, pause the motion detection.
 .RE
 .RE
 
@@ -1491,7 +1498,7 @@ The full path to the SSL key file for webcontrol
 .RE
 
 .TP
-.B webcontrol_cors_header
+.B webcontrol_header_params
 .RS
 .nf
 Values: User specified string
@@ -1499,7 +1506,7 @@ Default: Not defined
 Description:
 .fi
 .RS
-The header to add for cross orgin on the webcontrol
+The comma separated header=value pairs to use for the webcontrol responses.
 .RE
 .RE
 
@@ -1575,7 +1582,7 @@ When specified as on, use SSL/TLS for the stream port.
 .RE
 
 .TP
-.B stream_cors_header
+.B stream_header_params
 .RS
 .nf
 Values: User specified string
@@ -1583,10 +1590,7 @@ Default: Not defined
 Description:
 .fi
 .RS
-The Access-Control-Allow-Origin header value to be sent with the stream.
-If unspecified, no Access-Control-Allow-Origin header is sent.
-The header allows browsers to access the stream via cross-origin resource sharing (CORS).
-For example, * allows access from browser client code served from any domain.
+The comma separated header=value pairs to send for the stream responses.
 .RE
 .RE
 

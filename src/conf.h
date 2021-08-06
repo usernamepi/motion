@@ -42,6 +42,8 @@ struct config {
     char            *log_type;
     int             quiet;
     int             native_language;
+    int             watchdog_tmo;
+    int             watchdog_kill;
     const char      *camera_name;
     int             camera_id;
     const char      *camera_dir;
@@ -81,6 +83,7 @@ struct config {
     const char      *text_event;
 
     /* Motion detection configuration parameters */
+    int             pause;
     int             emulate_motion;
     int             threshold;
     int             threshold_maximum;
@@ -157,7 +160,7 @@ struct config {
     int             webcontrol_tls;
     const char      *webcontrol_cert;
     const char      *webcontrol_key;
-    const char      *webcontrol_cors_header;
+    char            *webcontrol_header_params;
 
     /* Live stream configuration parameters */
     int             stream_port;
@@ -165,7 +168,7 @@ struct config {
     int             stream_auth_method;
     const char      *stream_authentication;
     int             stream_tls;
-    const char      *stream_cors_header;
+    char            *stream_header_params;
     int             stream_preview_scale;
     int             stream_preview_newline;
     int             stream_preview_method;

@@ -318,7 +318,6 @@ static void context_destroy(struct context *cnt)
     /* Free memory allocated for config parameters */
     for (j = 0; config_params[j].param_name != NULL; j++) {
         if (config_params[j].copy == copy_string ||
-            config_params[j].copy == copy_uri ||
             config_params[j].copy == read_camera_dir) {
             void **val;
             val = (void *)((char *)cnt+(int)config_params[j].conf_value);
@@ -782,13 +781,12 @@ static int init_camera_type(struct context *cnt)
 
     if (cnt->conf.netcam_url) {
         if ((strncmp(cnt->conf.netcam_url,"mjpeg",5) == 0) ||
-            (strncmp(cnt->conf.netcam_url,"v4l2" ,4) == 0) ||
-            (strncmp(cnt->conf.netcam_url,"file" ,4) == 0) ||
-            (strncmp(cnt->conf.netcam_url,"rtmp" ,4) == 0) ||
-            (strncmp(cnt->conf.netcam_url,"rtsp" ,4) == 0)) {
-            cnt->camera_type = CAMERA_TYPE_RTSP;
-        } else {
+            (strncmp(cnt->conf.netcam_url,"ftp" ,3) == 0) ||
+            (strncmp(cnt->conf.netcam_url,"mjpg" ,4) == 0) ||
+            (strncmp(cnt->conf.netcam_url,"jpeg" ,4) == 0)) {
             cnt->camera_type = CAMERA_TYPE_NETCAM;
+        } else {
+            cnt->camera_type = CAMERA_TYPE_RTSP;
         }
         return 0;
     }
@@ -1069,6 +1067,7 @@ static int motion_init(struct context *cnt)
     cnt->imgs.height_high = 0;
     cnt->imgs.size_high = 0;
     cnt->movie_passthrough = cnt->conf.movie_passthrough;
+    cnt->pause = cnt->conf.pause;
 
     MOTION_LOG(NTC, TYPE_ALL, NO_ERRNO
         ,_("Camera %d started: motion detection %s"),
@@ -1664,7 +1663,7 @@ static void mlp_prepare(struct context *cnt)
     struct timeval tv1;
 
     /***** MOTION LOOP - PREPARE FOR NEW FRAME SECTION *****/
-    cnt->watchdog = WATCHDOG_TMO;
+    cnt->watchdog = cnt->conf.watchdog_tmo;
 
     /* Get current time and preserver last time for frame interval calc. */
 
@@ -3314,8 +3313,8 @@ static void motion_start_thread(struct context *cnt)
     /* Set a flag that we want this thread running */
     cnt->restart = 1;
 
-    /* Give the thread WATCHDOG_TMO to start */
-    cnt->watchdog = WATCHDOG_TMO;
+    /* Give the thread watchdog to start */
+    cnt->watchdog = cnt->conf.watchdog_tmo;
 
     /* Flag it as running outside of the thread, otherwise if the main loop
      * checked if it is was running before the thread set it to 1, it would
@@ -3384,7 +3383,7 @@ static void motion_watchdog(int indx)
         cnt_list[indx]->finish = 1;
     }
 
-    if (cnt_list[indx]->watchdog == WATCHDOG_KILL) {
+    if (cnt_list[indx]->watchdog == -cnt_list[indx]->conf.watchdog_kill) {
         MOTION_LOG(ERR, TYPE_ALL, NO_ERRNO
             ,_("Thread %d - Watchdog timeout did NOT restart, killing it!")
             , cnt_list[indx]->threadnr);
@@ -3403,7 +3402,7 @@ static void motion_watchdog(int indx)
         pthread_cancel(cnt_list[indx]->thread_id);
     }
 
-    if (cnt_list[indx]->watchdog < WATCHDOG_KILL) {
+    if (cnt_list[indx]->watchdog < -cnt_list[indx]->conf.watchdog_kill) {
         if ((cnt_list[indx]->camera_type == CAMERA_TYPE_NETCAM) &&
             (cnt_list[indx]->rtsp != NULL)) {
             if (!cnt_list[indx]->rtsp->handler_finished &&

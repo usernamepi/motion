@@ -24,7 +24,7 @@
 #ifndef _INCLUDE_MOTION_H
 #define _INCLUDE_MOTION_H
 
-/* Forward declarations, used in functional definitions of headers */
+/* Forward declarations of structs */
 struct images;
 struct image_data;
 struct rtsp_context;
@@ -152,9 +152,6 @@ struct ffmpeg;
                                     MISSING_FRAMES_TIMEOUT seconds has passed
                                     and then we show a grey image instead
                                     */
-
-#define WATCHDOG_TMO            30   /* 30 sec max motion_loop interval */
-#define WATCHDOG_KILL          -10   /* 10 sec grace period before calling thread cancel */
 
 #define CONNECTION_KO           "Lost connection"
 #define CONNECTION_OK           "Connection OK"
@@ -558,6 +555,9 @@ struct context {
     struct stream_data  stream_sub;     /* Copy of the image to use for web stream*/
     struct stream_data  stream_motion;  /* Copy of the image to use for web stream*/
     struct stream_data  stream_source;  /* Copy of the image to use for web stream*/
+
+    struct params_context    *webcontrol_headers;  /* Headers for webcontrol */
+    struct params_context    *stream_headers;  /* Headers for stream */
 
 
 };
