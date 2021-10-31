@@ -1,5 +1,7 @@
 #!/bin/sh
-BASE_VERSION="4.3.2"
+
+BASE_VERSION="4.4.0"
+
 if [ -d .git ]; then
     if test "`git diff --name-only`" = "" ; then
         GIT_COMMIT="git"

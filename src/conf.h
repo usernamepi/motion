@@ -15,15 +15,9 @@
  */
 
 /*
- *
- * conf.h - function prototypes for the config handling routines
- *
- * Originally written for the dproxy package by Matthew Pratt.
- *
- * Copyright 2000 Jeroen Vreeken (pe1rxq@chello.nl)
- *
- *
- *
+ * conf.h
+ *   Originally written for the dproxy package by Matthew Pratt.
+ *   Copyright 2000 Jeroen Vreeken (pe1rxq@chello.nl)
  */
 
 #ifndef _INCLUDE_CONF_H
@@ -161,6 +155,9 @@ struct config {
     const char      *webcontrol_cert;
     const char      *webcontrol_key;
     char            *webcontrol_header_params;
+    int             webcontrol_lock_minutes;
+    int             webcontrol_lock_attempts;
+    int             webcontrol_lock_max_ips;
 
     /* Live stream configuration parameters */
     int             stream_port;
