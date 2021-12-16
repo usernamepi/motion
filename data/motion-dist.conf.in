@@ -73,10 +73,7 @@ video_device /dev/video0
 #v4l2_palette 19 V4L2_PIX_FMT_Y12 Y12
 #v4l2_palette 20 V4L2_PIX_FMT_GREY GREY
 #v4l2_palette 21 V4L2_PIX_FMT_H264 H264
-v4l2_palette 17
-
-# Parameters to control video device.  See motion_guide.html
-; vid_control_params value
+video_params palette=17
 
 # The full URL of the network camera stream.
 ; netcam_url value
